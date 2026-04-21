@@ -1,0 +1,1 @@
+"""Umumiy sozlamalar va yordamchilar."""
