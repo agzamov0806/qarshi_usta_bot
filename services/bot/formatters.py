@@ -33,10 +33,17 @@ def format_order_detail(row: dict) -> str:
     phone = row.get("phone")
     phone_line = phone if phone else "(telefon berilmagan)"
     tme = f"https://t.me/{un}" if un else "(username bo‘lmasa to‘g‘ridan-to‘g‘ri chat yo‘q)"
+    usta_lines = ""
+    if row.get("accepted_usta_name") or row.get("accepted_usta_phone"):
+        usta_lines = (
+            f"👷 Usta: {row.get('accepted_usta_name') or '—'}\n"
+            f"📞 Usta tel: {row.get('accepted_usta_phone') or '—'}\n"
+        )
     return (
         f"🆔 Buyurtma #{row['id']}\n"
         f"🕐 {row['created_at']}\n"
         f"📌 Status: {row['status']}\n"
+        f"{usta_lines}"
         f"👤 Ism: {row.get('client_name') or '—'}\n"
         f"🔗 Username: {un_line}\n"
         f"📞 Telefon: {phone_line}\n"

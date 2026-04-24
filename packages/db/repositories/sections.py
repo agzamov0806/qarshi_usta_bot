@@ -7,7 +7,11 @@ import time
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from packages.db.models import Section
+from typing import Any
+
+from packages.db.models import Section, SectionUsta
+
+_UNSET: Any = object()
 from shared.section_titles import canonical_title_for_lookup
 
 # Tur nomlari (DB da saqlanadi)
@@ -47,6 +51,7 @@ def section_to_dict(s: Section) -> dict:
         "sort_order": s.sort_order,
         "is_active": s.is_active,
         "kind": s.kind,
+        "usta_telegram_id": s.usta_telegram_id,
         "created_at": s.created_at,
     }
 
@@ -55,7 +60,22 @@ async def list_all(session: AsyncSession) -> list[dict]:
     q = await session.execute(
         select(Section).order_by(Section.sort_order.asc(), Section.id.asc())
     )
-    return [section_to_dict(x) for x in q.scalars().all()]
+    secs = list(q.scalars().all())
+    if not secs:
+        return []
+    ids = [int(s.id) for s in secs]
+    cq = await session.execute(
+        select(SectionUsta.section_id, func.count(SectionUsta.id))
+        .where(SectionUsta.section_id.in_(ids))
+        .group_by(SectionUsta.section_id)
+    )
+    usta_counts = {int(r[0]): int(r[1]) for r in cq.all()}
+    out: list[dict] = []
+    for x in secs:
+        d = section_to_dict(x)
+        d["usta_count"] = usta_counts.get(int(x.id), 0)
+        out.append(d)
+    return out
 
 
 async def _fetch_active_titles_from_db(session: AsyncSession) -> list[str]:
@@ -127,6 +147,7 @@ async def update_section(
     kind: str | None = None,
     sort_order: int | None = None,
     is_active: bool | None = None,
+    usta_telegram_id: int | None | Any = _UNSET,
 ) -> bool:
     s = await session.get(Section, section_id)
     if not s:
@@ -139,6 +160,8 @@ async def update_section(
         s.sort_order = sort_order
     if is_active is not None:
         s.is_active = is_active
+    if usta_telegram_id is not _UNSET:
+        s.usta_telegram_id = usta_telegram_id
     await session.commit()
     invalidate_active_titles_cache()
     return True

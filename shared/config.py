@@ -29,11 +29,9 @@ class Settings(BaseSettings):
 
     bot_token: str
     admin_chat_id: int
-    # Standart: docker-compose.yml dagi PostgreSQL (usta / usta_dev_change / usta_bot)
-    # SQLite: sqlite+aiosqlite:///./data/app.db
-    database_url: str = (
-        "postgresql+asyncpg://usta:usta_dev_change@localhost:5432/usta_bot"
-    )
+    # Standart: SQLite (Railway / VPS da Postgres bo‘lmasa ham ishlaydi).
+    # Postgres: muhitda DATABASE_URL (docker-compose, Railway Postgres plugin, va hokazo).
+    database_url: str = "sqlite+aiosqlite:///./data/app.db"
 
     @field_validator("database_url", mode="before")
     @classmethod

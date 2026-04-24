@@ -85,6 +85,10 @@ async def init_db() -> None:
         from packages.db.migrate import run_sqlite_migrations
 
         await run_sqlite_migrations(engine)
+    elif "postgres" in settings.database_url.lower():
+        from packages.db.migrate import run_postgres_migrations
+
+        await run_postgres_migrations(engine)
 
     from packages.db.repositories import sections as sections_repo
 

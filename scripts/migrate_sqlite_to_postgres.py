@@ -24,7 +24,7 @@ if str(_ROOT) not in sys.path:
 from sqlalchemy import delete, inspect, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from packages.db.models import Base, Order, Section, User
+from packages.db.models import Base, Order, Section, SectionUsta, User
 from shared.config import clear_settings_cache, get_settings
 
 
@@ -70,28 +70,73 @@ async def _main() -> None:
 
     user_rows = [_columns_dict(u) for u in users]
     section_rows = [_columns_dict(s) for s in sections]
-    order_rows = [_columns_dict(o) for o in orders]
+    order_rows: list[dict[str, Any]] = []
+    for o in orders:
+        d = _columns_dict(o)
+        d.setdefault("section_id", None)
+        d.setdefault("accepted_usta_name", None)
+        d.setdefault("accepted_usta_phone", None)
+        d.setdefault("accepted_usta_telegram_id", None)
+        order_rows.append(d)
+
+    section_ustas_seed: list[dict[str, Any]] = []
+    try:
+        async with SqliteSession() as ss2:
+            su_list = (await ss2.execute(select(SectionUsta))).scalars().all()
+        for su in su_list:
+            d = _columns_dict(su)
+            d.setdefault("first_name", d.pop("display_name", "") or "")
+            d.setdefault("last_name", "")
+            d.setdefault("phone_normalized", "")
+            d.setdefault("telegram_id", None)
+            section_ustas_seed.append(d)
+    except Exception as exc:
+        print(f"section_ustas o'qishda xato (eski sxema?): {exc}")
+        # Eski sxemadan seeding: sections.usta_telegram_id
+        for s in sections:
+            cols = _columns_dict(s)
+            tid = cols.get("usta_telegram_id")
+            if tid is not None:
+                section_ustas_seed.append({
+                    "section_id": int(s.id),
+                    "telegram_id": int(tid),
+                    "first_name": "Usta",
+                    "last_name": "",
+                    "phone": "—",
+                    "phone_normalized": "",
+                })
 
     print(
         f"SQLite: users={len(user_rows)} sections={len(section_rows)} "
-        f"orders={len(order_rows)}"
+        f"orders={len(order_rows)} section_ustas_seed={len(section_ustas_seed)}"
     )
 
     PgSession = async_sessionmaker(pg_engine, expire_on_commit=False)
     async with PgSession() as session:
         async with session.begin():
             await session.execute(delete(Order))
+            await session.execute(delete(SectionUsta))
             await session.execute(delete(Section))
             await session.execute(delete(User))
             for row in user_rows:
                 session.add(User(**row))
             for row in section_rows:
                 session.add(Section(**row))
+            for row in section_ustas_seed:
+                row.pop("display_name", None)
+                session.add(SectionUsta(**row))
             for row in order_rows:
                 session.add(Order(**row))
 
     max_sid = max((r["id"] for r in section_rows), default=0)
     max_oid = max((r["id"] for r in order_rows), default=0)
+
+    async with PgSession() as session:
+        r = await session.execute(
+            select(SectionUsta.id).order_by(SectionUsta.id.desc()).limit(1)
+        )
+        max_uid_row = r.scalar_one_or_none()
+    max_uid = int(max_uid_row) if max_uid_row else 0
 
     async with PgSession() as session:
         async with session.begin():
@@ -107,6 +152,13 @@ async def _main() -> None:
                 ),
                 {"mx": max_oid if max_oid else 1, "called": bool(max_oid)},
             )
+            if max_uid:
+                await session.execute(
+                    text(
+                        "SELECT setval(pg_get_serial_sequence('section_ustas', 'id'), :mx, true)"
+                    ),
+                    {"mx": max_uid},
+                )
 
     await sqlite_engine.dispose()
     await pg_engine.dispose()

@@ -88,6 +88,46 @@ _MSG: dict[str, dict[str, str]] = {
             "Rahmat! Buyurtma qabul qilindi. Tez orada bog'lanamiz.\n\n"
             "Yana buyurtma berish uchun pastdagi xizmatni tanlang."
         ),
+        "order.usta_accepted_client": (
+            "✅ <b>Buyurtmangiz usta tomonidan qabul qilindi.</b>\n\n"
+            "👤 Usta: <b>{name}</b>\n"
+            "📞 Telefon: <b>{phone}</b>"
+        ),
+        "order.usta_accept_ok_toast": "✅ Mijozga xabar yuborildi.",
+        "order.usta_accept_status": "✅ <b>Qabul qilindi</b>",
+        "order.admin_usta_accepted": (
+            "✅ <b>Buyurtma #{oid} qabul qilindi!</b>\n\n"
+            "👤 Usta: <b>{name}</b>\n"
+            "📞 Telefon: <b>{phone}</b>"
+        ),
+        "order.complete_btn": "🏁 Tugatish",
+        "order.rate_prompt": (
+            "⭐ Ustaning ishini baholang:\n"
+            "1 — qoniqarsiz · 5 — a'lo"
+        ),
+        "order.rate_thanks": "Rahmat! Bahoyingiz qabul qilindi: {rating}/5 ⭐",
+        "order.admin_completed": (
+            "🏁 <b>Buyurtma #{oid} yakunlandi!</b>\n\n"
+            "👤 Usta: <b>{name}</b>\n"
+            "📞 Telefon: <b>{phone}</b>"
+        ),
+        "order.admin_rated": (
+            "⭐ <b>Buyurtma #{oid} bahosi: {rating}/5</b>\n"
+            "👤 Usta: <b>{name}</b>"
+        ),
+        "usta.claim_welcome": (
+            "👷 <b>Usta sifatida botga ulanish</b>\n\n"
+            "Telefoningizni tasdiqlash uchun pastdagi tugmani bosing."
+        ),
+        "usta.claim_contact_btn": "📱 Telefonni tasdiqlash",
+        "usta.claim_only_contact": "Iltimos, pastdagi «📱 Telefonni tasdiqlash» tugmasini bosing.",
+        "usta.claim_ok": "✅ Tabriklaymiz, <b>{name}</b>! Siz usta sifatida ro'yxatdan o'tdingiz.\nBo'limlaringizga yangi buyurtma kelganda sizga xabar yuboramiz.",
+        "usta.claim_not_found": (
+            "❌ Bu telefon raqam tizimda topilmadi.\n"
+            "Admin sizni qo'shmagandir yoki boshqa raqam ishlatilgan bo'lishi mumkin.\n"
+            "Adminga murojaat qiling."
+        ),
+        "usta.claim_already": "ℹ️ Siz allaqachon bot bilan bog'langansiz.",
         "order.fail_order": (
             "Buyurtma saqlandi ✅ (№{oid}). Operatorga xabar vaqtincha bormadi — "
             "ADMIN_CHAT_ID va bot bilan /start ni tekshiring.\n\n"
@@ -111,6 +151,15 @@ _MSG: dict[str, dict[str, str]] = {
         "btn.contact_share": "📱 Telefon raqamini ulashish",
         "btn.back_sections": "◀️ Bo'limlarga qaytish",
         "btn.back_detail": "◀️ Oldingi qadamga",
+        "btn.nested_list": "Ro'yxat bo'yicha qidirish",
+        "btn.nested_manual": "Muammoni qo'lda kiritish",
+        "order.nested_entry_prompt": (
+            "<b>{title}</b>\n\n"
+            "Tur va xizmatni ro'yxatdan tanlash yoki muammoni matn bilan yozish — "
+            "pastdagi tugmalardan birini tanlang."
+        ),
+        "order.nested_entry_pick": "Iltimos, pastdagi tugmalardan birini tanlang.",
+        "kb.ph_nested_entry": "Ro'yxat yoki qo'lda",
         "flow.santexnika": "<b>Santexnika</b> — xizmat turini tanlang.",
         "flow.payvandlash": "<b>Payvandlash xizmati (svarka)</b> — xizmat turini tanlang.",
         "flow.elektr": "<b>Elektrik</b> — xizmat turini tanlang.",
@@ -191,6 +240,46 @@ _MSG: dict[str, dict[str, str]] = {
             "Спасибо! Заказ принят. Скоро свяжемся.\n\n"
             "Для нового заказа выберите услугу ниже."
         ),
+        "order.usta_accepted_client": (
+            "✅ <b>Ваш заказ принят мастером.</b>\n\n"
+            "👤 Мастер: <b>{name}</b>\n"
+            "📞 Телефон: <b>{phone}</b>"
+        ),
+        "order.usta_accept_ok_toast": "✅ Клиенту отправлено уведомление.",
+        "order.usta_accept_status": "✅ <b>Принят</b>",
+        "order.admin_usta_accepted": (
+            "✅ <b>Заказ #{oid} принят мастером!</b>\n\n"
+            "👤 Мастер: <b>{name}</b>\n"
+            "📞 Телефон: <b>{phone}</b>"
+        ),
+        "order.complete_btn": "🏁 Завершить",
+        "order.rate_prompt": (
+            "⭐ Оцените работу мастера:\n"
+            "1 — плохо · 5 — отлично"
+        ),
+        "order.rate_thanks": "Спасибо! Оценка принята: {rating}/5 ⭐",
+        "order.admin_completed": (
+            "🏁 <b>Заказ #{oid} завершён!</b>\n\n"
+            "👤 Мастер: <b>{name}</b>\n"
+            "📞 Телефон: <b>{phone}</b>"
+        ),
+        "order.admin_rated": (
+            "⭐ <b>Оценка заказа #{oid}: {rating}/5</b>\n"
+            "👤 Мастер: <b>{name}</b>"
+        ),
+        "usta.claim_welcome": (
+            "👷 <b>Подключение как мастер</b>\n\n"
+            "Нажмите кнопку ниже для подтверждения номера телефона."
+        ),
+        "usta.claim_contact_btn": "📱 Подтвердить телефон",
+        "usta.claim_only_contact": "Нажмите кнопку «📱 Подтвердить телефон» ниже.",
+        "usta.claim_ok": "✅ Поздравляем, <b>{name}</b>! Вы зарегистрированы как мастер.\nПри новом заказе в ваших разделах вы получите уведомление.",
+        "usta.claim_not_found": (
+            "❌ Этот номер телефона не найден в системе.\n"
+            "Возможно, администратор ещё не добавил вас или использовал другой номер.\n"
+            "Свяжитесь с администратором."
+        ),
+        "usta.claim_already": "ℹ️ Вы уже подключены к боту как мастер.",
         "order.fail_order": (
             "Заказ сохранён ✅ (№{oid}). Оператору пока не доставлено — проверьте ADMIN_CHAT_ID и /start у бота.\n\n"
             "Можно попробовать снова — выберите услугу."
@@ -213,6 +302,15 @@ _MSG: dict[str, dict[str, str]] = {
         "btn.contact_share": "📱 Поделиться номером",
         "btn.back_sections": "◀️ К разделам",
         "btn.back_detail": "◀️ Назад",
+        "btn.nested_list": "Поиск по списку",
+        "btn.nested_manual": "Описать проблему вручную",
+        "order.nested_entry_prompt": (
+            "<b>{title}</b>\n\n"
+            "Выберите тип и услугу из списка или опишите проблему текстом — "
+            "нажмите одну из кнопок ниже."
+        ),
+        "order.nested_entry_pick": "Выберите одну из кнопок ниже.",
+        "kb.ph_nested_entry": "Список или текст",
         "flow.santexnika": "<b>Сантехника</b> — выберите тип услуги.",
         "flow.payvandlash": "<b>Сварка</b> — выберите тип услуги.",
         "flow.elektr": "<b>Электрика</b> — выберите тип услуги.",
@@ -230,6 +328,14 @@ def back_sections_labels() -> tuple[str, str]:
 
 def back_detail_labels() -> tuple[str, str]:
     return (t(LANG_UZ, "btn.back_detail"), t(LANG_RU, "btn.back_detail"))
+
+
+def nested_entry_list_labels() -> tuple[str, str]:
+    return (t(LANG_UZ, "btn.nested_list"), t(LANG_RU, "btn.nested_list"))
+
+
+def nested_entry_manual_labels() -> tuple[str, str]:
+    return (t(LANG_UZ, "btn.nested_manual"), t(LANG_RU, "btn.nested_manual"))
 
 
 def t(locale: str, key: str, **kwargs: str | int) -> str:

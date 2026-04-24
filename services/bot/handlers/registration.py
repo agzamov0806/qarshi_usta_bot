@@ -5,10 +5,18 @@ from html import escape
 from aiogram import F
 from aiogram.filters import Command, StateFilter, or_f
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import (
+    KeyboardButton,
+    Message,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+)
 
+from packages.db.repositories import section_ustas as section_ustas_repo
 from packages.db.repositories import users as users_repo
+from packages.db.models import SectionUsta
 from packages.db.session import get_session_factory
+from sqlalchemy import select
 from services.bot.filters import ActiveSectionTitleFilter
 from services.bot.i18n import (
     BTN_LANG_RU,
@@ -19,18 +27,32 @@ from services.bot.i18n import (
     t,
 )
 from services.bot.keyboards import (
+    build_admin_reply_keyboard,
     build_services_keyboard,
     contact_keyboard,
     language_reply_keyboard,
 )
 from services.bot.router import router
-from services.bot.states import LanguageStates, RegStates
+from services.bot.states import LanguageStates, RegStates, UstaClaimStates
 from shared.config import get_settings
+from shared.phone_norm import format_phone_display
 
 settings = get_settings()
 ADMIN_ID = settings.admin_chat_id
 
 _ONBOARDING_LOCALE_KEY = "onboarding_locale"
+_USTA_START_ARG = "usta"
+
+
+def _usta_claim_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📱 Telefonni tasdiqlash", request_contact=True)]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+        input_field_placeholder="Telefon tasdiqlash tugmasi",
+    )
 
 
 def _onboarding_locale_from_data(data: dict) -> str:
@@ -51,23 +73,36 @@ async def show_main_menu(
     await state.clear()
     uid = message.from_user.id if message.from_user else 0
     loc = locale if locale is not None else await _locale(uid)
-    extra = ""
-    if message.from_user and message.from_user.id == ADMIN_ID:
-        extra = t(loc, "main.welcome_admin")
+    if uid == ADMIN_ID:
+        await message.answer(
+            "👤 <b>Admin panel</b>\n\n"
+            "Pastdagi tugmalardan foydalaning.\n"
+            "/admin — inline panel, /sections — bo'limlar",
+            reply_markup=build_admin_reply_keyboard(),
+            parse_mode="HTML",
+        )
     else:
         extra = t(loc, "main.welcome_lang")
-    async with get_session_factory()() as session:
-        kb = await build_services_keyboard(session, loc)
-    await message.answer(
-        t(loc, "main.welcome") + extra,
-        reply_markup=kb,
-    )
+        async with get_session_factory()() as session:
+            kb = await build_services_keyboard(session, loc)
+        await message.answer(
+            t(loc, "main.welcome") + extra,
+            reply_markup=kb,
+        )
 
 
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext) -> None:
     await state.clear()
     uid = message.from_user.id if message.from_user else 0
+
+    # Deep link: /start usta — usta ro'yxatdan o'tish oqimi
+    args = (message.text or "").split(maxsplit=1)
+    start_arg = args[1].strip() if len(args) > 1 else ""
+    if start_arg == _USTA_START_ARG:
+        await _start_usta_claim(message, state)
+        return
+
     if uid == ADMIN_ID:
         await show_main_menu(message, state)
         return
@@ -80,6 +115,23 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         t(LANG_UZ, "lang.choose"),
         parse_mode="HTML",
         reply_markup=language_reply_keyboard(),
+    )
+
+
+async def _start_usta_claim(message: Message, state: FSMContext) -> None:
+    """Usta /start usta deep link bilan kirdi."""
+    uid = message.from_user.id if message.from_user else 0
+    # Allaqachon bog'langan bo'lsa — xabar
+    async with get_session_factory()() as session:
+        already = await section_ustas_repo.is_registered_as_usta(session, uid)
+    if already:
+        await message.answer(t(LANG_UZ, "usta.claim_already"))
+        return
+    await state.set_state(UstaClaimStates.waiting_contact)
+    await message.answer(
+        t(LANG_UZ, "usta.claim_welcome"),
+        parse_mode="HTML",
+        reply_markup=_usta_claim_keyboard(),
     )
 
 
@@ -243,3 +295,64 @@ async def reg_phone_hint(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     loc = _onboarding_locale_from_data(data)
     await message.answer(t(loc, "reg.err_contact_only"))
+
+
+# ---- USTA CLAIM OQIMI ----
+
+@router.message(UstaClaimStates.waiting_contact, F.contact)
+async def usta_claim_contact(message: Message, state: FSMContext) -> None:
+    """Usta o'z kontaktini yubordi — telefonni normalizatsiya qilib DB bilan bog'laymiz."""
+    c = message.contact
+    if not c or not message.from_user:
+        return
+    # Faqat o'z raqamini yuborishi kerak
+    if c.user_id and c.user_id != message.from_user.id:
+        await message.answer(
+            t(LANG_UZ, "reg.err_contact_self"),
+            reply_markup=_usta_claim_keyboard(),
+        )
+        return
+
+    uid = message.from_user.id
+    raw_phone = c.phone_number or ""
+
+    async with get_session_factory()() as session:
+        count = await section_ustas_repo.claim_by_phone(
+            session,
+            contact_phone=raw_phone,
+            telegram_id=uid,
+        )
+
+    await state.clear()
+    if count == 0:
+        await message.answer(
+            t(LANG_UZ, "usta.claim_not_found"),
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        return
+
+    # Ism ni bazadan olamiz
+    async with get_session_factory()() as session:
+        q = await session.execute(
+            select(SectionUsta).where(SectionUsta.telegram_id == uid).limit(1)
+        )
+        usta_row = q.scalar_one_or_none()
+    full_name = ""
+    if usta_row:
+        parts = [usta_row.first_name, usta_row.last_name or ""]
+        full_name = " ".join(p for p in parts if p).strip()
+    name_esc = escape(full_name or "Usta")
+
+    await message.answer(
+        t(LANG_UZ, "usta.claim_ok", name=name_esc),
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
+@router.message(UstaClaimStates.waiting_contact)
+async def usta_claim_non_contact(message: Message) -> None:
+    await message.answer(
+        t(LANG_UZ, "usta.claim_only_contact"),
+        reply_markup=_usta_claim_keyboard(),
+    )

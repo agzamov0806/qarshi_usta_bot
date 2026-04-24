@@ -326,6 +326,19 @@ def nested_detail_map_for_flow(flow: str, locale: str) -> dict[str, tuple[str, .
     return {}
 
 
+def build_nested_section_entry_keyboard(locale: str = LANG_UZ) -> ReplyKeyboardMarkup:
+    """Nested bo'limlar: ro'yxat yoki muammoni qo'lda."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t(locale, "btn.nested_manual"))],
+            [KeyboardButton(text=t(locale, "btn.nested_list"))],
+            [KeyboardButton(text=t(locale, "btn.back_sections"))],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder=t(locale, "kb.ph_nested_entry"),
+    )
+
+
 def build_santexnika_sub_keyboard(locale: str = LANG_UZ) -> ReplyKeyboardMarkup:
     s = _pick_sub(SANTEXNIKA_SUB_SERVICES, SANTEXNIKA_SUB_SERVICES_RU, locale)
     back = t(locale, "btn.back_sections")
@@ -639,6 +652,28 @@ def language_reply_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[[KeyboardButton(text=BTN_LANG_UZ), KeyboardButton(text=BTN_LANG_RU)]],
         resize_keyboard=True,
         input_field_placeholder="O'zbekcha / Русский",
+    )
+
+
+BTN_ADMIN_ORDERS = "📋 Buyurtmalar"
+BTN_ADMIN_NEW = "🆕 Yangi buyurtmalar"
+BTN_ADMIN_ACCEPTED = "✅ Qabul qilingan"
+BTN_ADMIN_DONE = "🏁 Tugatilgan"
+BTN_ADMIN_STATS = "📊 Statistika"
+BTN_ADMIN_SECTIONS = "📂 Bo'limlar"
+BTN_ADMIN_USTAS = "👷 Ustalar"
+
+
+def build_admin_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Admin uchun bosh sahifa reply keyboard."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=BTN_ADMIN_NEW),      KeyboardButton(text=BTN_ADMIN_SECTIONS)],
+            [KeyboardButton(text=BTN_ADMIN_ACCEPTED),  KeyboardButton(text=BTN_ADMIN_STATS)],
+            [KeyboardButton(text=BTN_ADMIN_DONE),      KeyboardButton(text=BTN_ADMIN_USTAS)],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Admin paneli",
     )
 
 

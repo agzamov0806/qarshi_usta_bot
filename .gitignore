@@ -1,7 +1,11 @@
 .env
 data/
 *.db
+*.db-shm
+*.db-wal
 venv/
 .venv/
 __pycache__/
 *.pyc
+bot.log
+bot_err.log

@@ -4,8 +4,10 @@ from aiogram.filters.callback_data import CallbackData
 
 
 class OrderCallback(CallbackData, prefix="ord"):
-    action: str
+    action: str  # view, done, accept, reject, complete, rate, assign_pick, assign_usta
     order_id: int
+    suid: int = 0  # section_ustas.id — faqat action=accept/reject/complete/rate/assign_usta
+    rating: int = 0  # action=rate uchun: 1-5
 
 
 class AdminCallback(CallbackData, prefix="adm"):
@@ -13,10 +15,16 @@ class AdminCallback(CallbackData, prefix="adm"):
 
 
 class SectionCallback(CallbackData, prefix="sec"):
-    action: str  # menu, list, add, edit, del, dely, toggle, kind
+    action: str  # menu, list, add, edit, del, dely, toggle, kind, usta (ustalar ro'yxati)
     sid: int = 0
 
 
 class SectionKindCallback(CallbackData, prefix="sck"):
     sid: int
     kind: str
+
+
+class SectionUstaCallback(CallbackData, prefix="sut"):
+    action: str  # add, del, menu
+    sid: int
+    uid: int = 0  # section_ustas.id — del

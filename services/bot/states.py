@@ -15,6 +15,8 @@ class LanguageStates(StatesGroup):
 
 
 class OrderStates(StatesGroup):
+    """Ro'yxat + qo'lda matn tanlovi (Santexnika, Elektrik, ...)."""
+    waiting_nested_section_entry = State()
     waiting_sub_service = State()
     waiting_sub_detail = State()
     waiting_problem = State()
@@ -24,3 +26,17 @@ class OrderStates(StatesGroup):
 class SectionAdminStates(StatesGroup):
     waiting_new_title = State()
     waiting_edit_title = State()
+    # Usta qo'shish: ism → familiya → telefon
+    waiting_usta_first_name = State()
+    waiting_usta_last_name = State()
+    waiting_usta_phone = State()
+
+
+class UstaClaimStates(StatesGroup):
+    """Usta /start usta orqali kiradi, telefon yuboradi — DB bog'lanadi."""
+    waiting_contact = State()
+
+
+class UstaRejectStates(StatesGroup):
+    """Usta buyurtmani rad etganda sabab kiritadi."""
+    waiting_reason = State()
