@@ -274,13 +274,21 @@ async def run_postgres_migrations(engine: AsyncEngine) -> None:
                     f"ALTER TABLE section_ustas ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"
                 )
             )
-        # display_name ni first_name ga ko'chirish
+        # display_name ni first_name ga ko'chirish (faqat ustun mavjud bo'lsa)
         await conn.execute(
             text(
                 """
-                UPDATE section_ustas
-                SET first_name = display_name
-                WHERE first_name = '' AND display_name IS NOT NULL AND display_name != ''
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'section_ustas' AND column_name = 'display_name'
+                    ) THEN
+                        UPDATE section_ustas
+                        SET first_name = display_name
+                        WHERE first_name = '' AND display_name IS NOT NULL AND display_name != '';
+                    END IF;
+                END $$;
                 """
             )
         )
