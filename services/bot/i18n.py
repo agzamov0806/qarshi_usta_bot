@@ -38,7 +38,7 @@ _MSG: dict[str, dict[str, str]] = {
         ),
         "reg.done": "✅ Ro'yxatdan o'tdingiz: <b>{name}</b>",
         "reg.err_name_short": "Ism kamida 2 ta belgidan iborat bo'lsin.",
-        "reg.err_name_long": "Juday uzun. Qisqaroq yozing.",
+        "reg.err_name_long": "Juda uzun. Qisqaroq yozing.",
         "reg.err_fam_short": "Familiya kamida 2 ta belgidan iborat bo'lsin.",
         "reg.err_text_name": "Matn bilan ismingizni yozing.",
         "reg.err_text_fam": "Matn bilan familiyangizni yozing.",

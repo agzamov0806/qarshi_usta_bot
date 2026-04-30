@@ -339,7 +339,7 @@ async def cb_order_assign_usta(call: CallbackQuery, callback_data: OrderCallback
         )
 
     if result == "no_usta":
-        await call.answer("Usta topilmadi yoki hali Telegramni ulamamagan", show_alert=True)
+        await call.answer("Usta topilmadi yoki hali Telegram bilan ulamagan", show_alert=True)
         return
     if result == "race":
         await call.answer("Buyurtma allaqachon qabul qilingan yoki topilmadi", show_alert=True)
@@ -356,7 +356,7 @@ async def cb_order_assign_usta(call: CallbackQuery, callback_data: OrderCallback
             await call.bot.send_message(
                 chat_id=int(su_row.telegram_id),
                 text=(
-                    f"📋 Admin siz uchun buyurtma tayinladi:\n\n"
+                    f"📋 Admin sizga buyurtma tayinladi:\n\n"
                     f"🆔 Buyurtma #{row['id']}\n"
                     f"🔧 Xizmat: {row['service']}\n"
                     f"📝 Muammo: {row['problem']}\n"

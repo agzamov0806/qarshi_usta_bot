@@ -752,7 +752,7 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
         usta_full_name = ur["display_name"]
         usta_text = (
             f"👷 Yangi buyurtma #{order_id}\n"
-            f"<b>Usta:</b> {escape(usta_full_name)}\n\n"
+            f"Salom, <b>{escape(usta_full_name)}</b>!\n\n"
             f"{body_block}"
         )
         asyncio.create_task(
@@ -1090,7 +1090,7 @@ async def cb_order_reject_usta(
 
     await call.message.answer(
         f"❌ Buyurtma #{oid} — rad etish sababini yozing:\n"
-        f"(Sabab adminga yuboriladi va admin boshqa ustaga berishi mumkin)"
+        f"(Sabab adminga yuboriladi)"
     )
     await call.answer()
 
