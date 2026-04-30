@@ -65,7 +65,7 @@ class SectionUsta(Base):
     phone: Mapped[str] = mapped_column(String(32))
     # normalized phone (matching uchun); avtomatik hisoblanadi
     phone_normalized: Mapped[str] = mapped_column(String(32), default="")
-    # Reyting: barcha baholар yig'indisi va soni
+    # Reyting: barcha baholar yig'indisi va soni
     rating_sum: Mapped[float] = mapped_column(Float, default=0.0)
     rating_count: Mapped[int] = mapped_column(default=0)
 
@@ -89,8 +89,12 @@ class Order(Base):
     )
     section_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
     problem: Mapped[str] = mapped_column(Text)
+    # JSON: [{"type":"photo"|"video"|"video_note"|"document","file_id":"..."}, ...]
+    problem_media_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Mijoz aytgan ish/uy joyi matni (lokatsiya boshqa joydan yuborilganda ham)
+    service_address_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="new")
     accepted_usta_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     accepted_usta_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)

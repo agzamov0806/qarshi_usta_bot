@@ -51,20 +51,80 @@ _MSG: dict[str, dict[str, str]] = {
             "Javob chiqmadi yoki sessiya uzildi. /start dan qayta boshlang.\n\n"
             "Agar muammo takrorlansa, bot faqat bitta serverda ishga tushganini tekshiring."
         ),
+        "fallback.orphaned_nested": (
+            "Sessiya chatda yo'q (bot qayta ishga tushgan yoki server almashgan). "
+            "Telegram eski tugmalarni ko'rsatishi mumkin — <b>/start</b> bosing.\n\n"
+            "Bir xil token bilan ikki joyda bot ishlamasligi kerak (masalan, kompyuter + VPS): "
+            "bo'lishi mumkin bo'lgan ikkala nusxani to'xtating."
+        ),
         "reg.need_register": "Avval /start orqali ro'yxatdan o'ting.",
+        "order.finalize_need_geo_or_address": (
+            "<b>Lokatsiya yoki yozma manzil kerak.</b>\n"
+            "Iltimos, pastdagi tugmalardan birini tanlang: "
+            "joy yuboring yoki yozma manzil bilan yakunlang."
+        ),
         "order.need_register": "Avval /start orqali ro'yxatdan o'ting.",
         "order.section_missing": "Bu bo'lim hozir mavjud emas. /start",
-        "order.problem_not_text": "Iltimos, muammoni matn bilan yozing.",
+        "order.problem_not_text": (
+            "Matn, rasm, video yoki dumaloq video-xabar yuboring (fayl sifatida rasm/video ham mumkin)."
+        ),
+        "order.problem_placeholder_photo": "(Rasm yuborildi)",
+        "order.problem_placeholder_video": "(Video yuborildi)",
+        "order.problem_file_not_supported": (
+            "Faqat rasm yoki video fayl yuboring (boshqa turdagi fayllar qabul qilinmaydi)."
+        ),
         "order.cancel": "Bekor qilindi. /start bilan qayta boshlang.",
         "order.session_bad": "Sessiya yangilandi. Avval /start bilan ro'yxatdan o'ting.",
         "order.session_nested_bad": "Sessiya buzildi. /start dan boshlang.",
+        "order.optional_media_prompt": (
+            "<b>Ixtiyoriy:</b> muammo joyi yoki nosozlikni "
+            "<b>rasm</b> / <b>video</b> bilan yuborishingiz mumkin "
+            "(usta asbob bilan boradi).\n\n"
+            "Pastdagi <b>ikkala tugmadan birini</b> tanlab buyurtmani yakunlang: "
+            "<b>lokatsiya yuboring</b> yoki <b>xaritasiz manzil yozing</b>."
+        ),
+        "order.optional_media_next_btn": "📍 Keyingi — lokatsiya yuborish",
+        "order.optional_media_legacy_continue": (
+            "<b>Davometing:</b> pastdagi tugmalardan joy yuboring yoki manzil yozing."
+        ),
+        "order.optional_media_input_ph": "Rasm/video",
+        "order.optional_media_saved": (
+            "✅ Qabul qilindi. Yana rasm/video yuborishingiz mumkin "
+            "(yoki pastdagi tugmalar bilan buyurtmani yakunlang)."
+        ),
+        "order.optional_media_text_only": (
+            "Pastdagi <b>tugmadan lokatsiya yuboring</b> "
+            "yoki <b>xaritasiz manzil</b>. "
+            "(Qoʻshimcha izoh yozsangiz, u buyurtma matniga qoʻshiladi.)"
+        ),
+        "order.optional_media_fallback": (
+            "Rasm, video yoki fayl (rasm/video) yuboring; "
+            "yoki pastdagi tugmalar bilan joy yoki yozma manzil bering."
+        ),
+        "order.optional_media_note_appended": (
+            "✅ <b>Qo‘shimcha yozuv qabul qilindi.</b>\nEndi lokatsiya yuboring "
+            "yoki <b>Xaritasiz — manzil yozaman</b> tugmasidan foydalaning."
+        ),
         "order.location_prompt": (
-            "Joylashuvni yuboring — pastdagi «Lokatsiyani yuborish» tugmasidan foydalaning "
-            "(buyurtma uchun majburiy)."
+            "<b>Qayerga usta kelishi kerak?</b>\n\n"
+            "Quyidagilardan <b>bittasini</b> tanlang:\n"
+            "• <b>1-tugma</b> — telegram orqali joy yuboriladi (xarita ochilsa, belgini uyga torting va yuboring);\n"
+            "• <b>2-tugma</b> — xaritadan foydalanmasdan, manzilni yozib yuborasiz."
         ),
         "order.location_hint": (
-            "Faqat pastdagi tugma orqali joylashuv yuboring (matn emas)."
+            "Ikkala pastdagi tugmadan birini bosing: avvalo <b>Lokatsiya yuborish</b> "
+            "yoki <b>Yozma manzil</b>. Oddiy matn bu qadamda ishlamaydi."
         ),
+        "order.address_text_only_btn": "✏️ Xaritasiz — manzil yozaman",
+        "order.address_choice_placeholder": "Tugmani tanlang",
+        "order.address_written_prompt": (
+            "<b>Yozma manzilni bitta xabarda yozing.</b>\n"
+            "Masalan: mahalla, ko‘cha, uy raqami, kirish, qavat, eslatma."
+        ),
+        "order.visit_address_too_short": (
+            "Juda qisqa. To‘liq manzil yozing — kamida <b>10</b> ta belgi bo‘lsin."
+        ),
+        "order.visit_address_fallback": "Faqat matn bilan manzil yozing.",
         "order.pick_sub": "Iltimos, pastdagi tugmalardan birini tanlang yoki «Bo'limlarga qaytish»ni bosing.",
         "order.pick_detail": "Iltimos, pastdagi tugmalardan birini tanlang yoki «Oldingi qadamga»ni bosing.",
         "order.sub_non_text": "Matn bilan tugmani tanlang yoki «Bo'limlarga qaytish»ni bosing.",
@@ -91,7 +151,35 @@ _MSG: dict[str, dict[str, str]] = {
         "order.usta_accepted_client": (
             "✅ <b>Buyurtmangiz usta tomonidan qabul qilindi.</b>\n\n"
             "👤 Usta: <b>{name}</b>\n"
-            "📞 Telefon: <b>{phone}</b>"
+            "📞 Telefon: <b>{phone}</b>\n\n"
+            "{finish_hint}"
+        ),
+        "order.client_finish_hint": (
+            "Avvalo «Usta ishni tugatdi» tugmasini bosing — keyin chiqadigan oynada tasdiqlang. "
+            "Keyin 1 dan 5 gacha baholang."
+        ),
+        "order.client_finish_btn": "✅ Usta ishni tugatdi",
+        "order.client_confirm_alert_question": (
+            "❓ Usta ishini haqiqatdan ham yakunlaganingizni tasdiqlaysizmi?\n\n"
+            "Agar tugmani tasodifiy bossangiz, pastdagi «Bekor»ni bosing."
+        ),
+        "order.client_confirm_btn_yes": "✅ Ha, tugagan",
+        "order.client_confirm_btn_no": "❌ Bekor",
+        "order.client_confirm_cancel_toast": "«Usta ishni tugatdi» bosqichi bekor qilindi.",
+        "order.client_completed_line": "✅ <b>Buyurtma yakunlandi.</b>",
+        "order.client_finish_toast": "Endi ustani baholang (1–5).",
+        "order.client_complete_not_accepted": (
+            "Bu buyurtma hozir tasdiqlash uchun mos emas (allaqachon yopilgan)."
+        ),
+        "order.client_complete_failed": (
+            "Buyurtma yakunlanmadi — allaqachon tugagan yoki usta qabul qilmagan."
+        ),
+        "order.admin_assigned_client": (
+            "📋 <b>Administrator buyurtmangiz uchun ustani belgiladi.</b>\n\n"
+            "🆔 Buyurtma <b>#{oid}</b>\n"
+            "👤 Usta: <b>{name}</b>\n"
+            "📞 Telefon: <b>{phone}</b>\n\n"
+            "{finish_hint}"
         ),
         "order.usta_accept_ok_toast": "✅ Mijozga xabar yuborildi.",
         "order.usta_accept_status": "✅ <b>Qabul qilindi</b>",
@@ -100,10 +188,9 @@ _MSG: dict[str, dict[str, str]] = {
             "👤 Usta: <b>{name}</b>\n"
             "📞 Telefon: <b>{phone}</b>"
         ),
-        "order.complete_btn": "🏁 Tugatish",
         "order.rate_prompt": (
             "⭐ Ustaning ishini baholang:\n"
-            "1 — qoniqarsiz · 5 — a'lo"
+            "1 — juda yomon · 5 — aʼlo"
         ),
         "order.rate_thanks": "Rahmat! Bahoyingiz qabul qilindi: {rating}/5 ⭐",
         "order.admin_completed": (
@@ -114,6 +201,14 @@ _MSG: dict[str, dict[str, str]] = {
         "order.admin_rated": (
             "⭐ <b>Buyurtma #{oid} bahosi: {rating}/5</b>\n"
             "👤 Usta: <b>{name}</b>"
+        ),
+        "order.usta_notify_completed": (
+            "🏁 <b>Buyurtma #{oid}</b> — mijoz ishning tugaganligini tasdiqladi.\n"
+            "Buyurtma yopildi.\n"
+            "⭐ Mijoz tez orada baho berishi mumkin — baho bergandan keyin alohida xabar keladi."
+        ),
+        "order.usta_notify_rated": (
+            "⭐ <b>Buyurtma #{oid}</b> bo'yicha mijoz <b>{rating}/5</b> baho qildi."
         ),
         "usta.claim_welcome": (
             "👷 <b>Usta sifatida botga ulanish</b>\n\n"
@@ -127,15 +222,22 @@ _MSG: dict[str, dict[str, str]] = {
             "Admin sizni qo'shmagandir yoki boshqa raqam ishlatilgan bo'lishi mumkin.\n"
             "Adminga murojaat qiling."
         ),
-        "usta.claim_already": "ℹ️ Siz allaqachon bot bilan bog'langansiz.",
+        "usta.claim_already": "ℹ️ Bu telefon raqam usta sifatida allaqachon ro'yxatda.",
         "order.fail_order": (
             "Buyurtma saqlandi ✅ (№{oid}). Operatorga xabar vaqtincha bormadi — "
             "ADMIN_CHAT_ID va bot bilan /start ni tekshiring.\n\n"
             "Yana urinib ko‘rishingiz mumkin — xizmatni tanlang."
         ),
-        "prompt.problem": "Muammo yoki vazifa qisqa yozing (bitta xabar).",
-        "prompt.suggestion": "Taklifingizni yozing (bitta xabar).",
-        "prompt.admin_contact": "Murojaatingizni yozing (bitta xabar).",
+        "prompt.problem": (
+            "Muammo yoki vazifani <b>matn</b>, <b>rasm</b> yoki <b>video</b> bilan yuboring "
+            "(sarlavha sifatida izoh qo‘shishingiz mumkin). Bir xabar."
+        ),
+        "prompt.suggestion": (
+            "Taklifingizni matn, rasm yoki video bilan yuboring (izoh ixtiyoriy). Bir xabar."
+        ),
+        "prompt.admin_contact": (
+            "Murojaatingizni matn, rasm yoki video bilan yuboring (izoh ixtiyoriy). Bir xabar."
+        ),
         "kb.contact_placeholder": "Tugmani bosing",
         "kb.services_placeholder": "Xizmatni tanlang",
         "kb.no_section": "— bo'lim yo'q —",
@@ -146,7 +248,6 @@ _MSG: dict[str, dict[str, str]] = {
         "kb.ph_mebel": "Mebel: turini tanlang",
         "kb.ph_tv": "TV / maishiy: turini tanlang",
         "kb.ph_kond": "Konditsioner: turini tanlang",
-        "kb.location_placeholder": "Lokatsiyani yuborish tugmasi",
         "btn.send_location": "Lokatsiyani yuborish",
         "btn.contact_share": "📱 Telefon raqamini ulashish",
         "btn.back_sections": "◀️ Bo'limlarga qaytish",
@@ -191,9 +292,9 @@ _MSG: dict[str, dict[str, str]] = {
             "Только свой номер — Telegram проверит."
         ),
         "reg.done": "✅ Вы зарегистрированы: <b>{name}</b>",
-        "reg.err_name_short": "Имя не короче 2 символов.",
+        "reg.err_name_short": "Имя должно содержать не менее 2 символов.",
         "reg.err_name_long": "Слишком длинно. Короче.",
-        "reg.err_fam_short": "Фамилия не короче 2 символов.",
+        "reg.err_fam_short": "Фамилия должна содержать не менее 2 символов.",
         "reg.err_text_name": "Отправьте имя текстом.",
         "reg.err_text_fam": "Отправьте фамилию текстом.",
         "reg.err_contact_self": "Отправьте только свой номер через кнопку «Поделиться».",
@@ -203,20 +304,77 @@ _MSG: dict[str, dict[str, str]] = {
             "Ответ не сформирован или сессия сброшена. Начните с /start.\n\n"
             "Если повторяется — убедитесь, что бот запущен в одном экземпляре."
         ),
+        "fallback.orphaned_nested": (
+            "Сессия в чате сброшена (бот перезапущен или другой сервер). "
+            "Telegram может показывать старые кнопки — нажмите <b>/start</b>.\n\n"
+            "Нельзя запускать одного бота в двух местах с одним токеном (ПК и VPS и т.д.) — "
+            "остановите лишнее."
+        ),
         "reg.need_register": "Сначала пройдите регистрацию: /start.",
+        "order.finalize_need_geo_or_address": (
+            "<b>Нужна геолокация или адрес текстом.</b>\n"
+            "Выберите одну из кнопок ниже: отправьте точку на карте "
+            "или «Без карты — напишу адрес»."
+        ),
         "order.need_register": "Сначала пройдите регистрацию: /start.",
         "order.section_missing": "Этот раздел сейчас недоступен. /start",
-        "order.problem_not_text": "Опишите проблему текстом.",
+        "order.problem_not_text": (
+            "Отправьте текст, фото, видео или видеосообщение (кружок); можно файлом фото/видео."
+        ),
+        "order.problem_placeholder_photo": "(Отправлено фото)",
+        "order.problem_placeholder_video": "(Отправлено видео)",
+        "order.problem_file_not_supported": (
+            "Отправьте только изображение или видео (другие типы файлов не принимаются)."
+        ),
         "order.cancel": "Отменено. Начните снова с /start.",
         "order.session_bad": "Сессия сброшена. Сначала /start.",
         "order.session_nested_bad": "Сессия сброшена. Начните с /start.",
+        "order.optional_media_prompt": (
+            "<b>По желанию:</b> можете отправить место или неполадку "
+            "<b>фото</b> или <b>видео</b>.\n\n"
+            "Чтобы продолжить заказ — выберите <b>одну из двух кнопок ниже</b>: "
+            "отправить <b>геолокацию</b> или <b>написать адрес без карты</b>."
+        ),
+        "order.optional_media_next_btn": "📍 Далее — отправить геолокацию",
+        "order.optional_media_legacy_continue": (
+            "<b>Продолжайте:</b> отправьте геолокацию или адрес текстом через кнопки ниже."
+        ),
+        "order.optional_media_input_ph": "Фото/видео",
+        "order.optional_media_saved": (
+            "✅ Сохранено. Можете отправить ещё или завершите заказ кнопками ниже."
+        ),
+        "order.optional_media_text_only": (
+            "Выберите <b>геолокацию</b> или <b>«Без карты — напишу адрес»</b>. "
+            "Текст тоже можно — он добавится к описанию заказа."
+        ),
+        "order.optional_media_fallback": (
+            "Пришлите фото или видео (или файл-фото/видео) "
+            "или воспользуйтесь кнопками геолокации или текста ниже."
+        ),
+        "order.optional_media_note_appended": (
+            "✅ <b>Текст добавлен.</b>\nТеперь отправьте геолокацию или нажмите "
+            "<b>«Без карты — напишу адрес»</b>."
+        ),
         "order.location_prompt": (
-            "Отправьте геолокацию кнопкой «Отправить местоположение» ниже "
-            "(для заказа обязательно)."
+            "<b>Куда приехать мастеру?</b>\n\n"
+            "Выберите <b>один</b> вариант:\n"
+            "• <b>1-я кнопка</b> — отправить местоположение (на карте перетащите метку на дом);\n"
+            "• <b>2-я кнопка</b> — без карты: напишете адрес текстом."
         ),
         "order.location_hint": (
-            "Отправьте геолокацию только кнопкой ниже (не текстом)."
+            "Нажмите одну из двух кнопок ниже: <b>геолокация</b> или <b>адрес текстом</b>. "
+            "Текстом что-то писать на этом шаге не нужно."
         ),
+        "order.address_text_only_btn": "✏️ Без карты — напишу адрес",
+        "order.address_choice_placeholder": "Выберите кнопку",
+        "order.address_written_prompt": (
+            "<b>Одним сообщением напишите адрес.</b>\n"
+            "Например: район, улица, дом, подъезд, этаж, ориентир."
+        ),
+        "order.visit_address_too_short": (
+            "Слишком коротко. Напишите адрес подробнее — не менее <b>10</b> символов."
+        ),
+        "order.visit_address_fallback": "Отправьте адрес одним текстовым сообщением.",
         "order.pick_sub": "Выберите кнопку ниже или «Назад к разделам».",
         "order.pick_detail": "Выберите кнопку ниже или «Назад».",
         "order.sub_non_text": "Выберите кнопку или «Назад к разделам».",
@@ -243,7 +401,35 @@ _MSG: dict[str, dict[str, str]] = {
         "order.usta_accepted_client": (
             "✅ <b>Ваш заказ принят мастером.</b>\n\n"
             "👤 Мастер: <b>{name}</b>\n"
-            "📞 Телефон: <b>{phone}</b>"
+            "📞 Телефон: <b>{phone}</b>\n\n"
+            "{finish_hint}"
+        ),
+        "order.client_finish_hint": (
+            "Сначала нажмите «Мастер закончил работу», затем подтвердите в окне. "
+            "Потом оцените от 1 до 5."
+        ),
+        "order.client_finish_btn": "✅ Мастер закончил работу",
+        "order.client_confirm_alert_question": (
+            "❓ Подтвердите, что мастер действительно закончил работу.\n\n"
+            "Если нажали случайно — нажмите «Отмена»."
+        ),
+        "order.client_confirm_btn_yes": "✅ Да, готово",
+        "order.client_confirm_btn_no": "❌ Отмена",
+        "order.client_confirm_cancel_toast": "Шаг отменён — снова можете нажать «Мастер закончил работу».",
+        "order.client_completed_line": "✅ <b>Заказ завершён.</b>",
+        "order.client_finish_toast": "Оцените мастера (1–5).",
+        "order.client_complete_not_accepted": (
+            "Заказ сейчас нельзя подтвердить (уже закрыт)."
+        ),
+        "order.client_complete_failed": (
+            "Заказ не завершён — уже закрыт или мастер не принял заказ."
+        ),
+        "order.admin_assigned_client": (
+            "📋 <b>Администратор назначил мастера по вашему заказу.</b>\n\n"
+            "🆔 Заказ <b>#{oid}</b>\n"
+            "👤 Мастер: <b>{name}</b>\n"
+            "📞 Телефон: <b>{phone}</b>\n\n"
+            "{finish_hint}"
         ),
         "order.usta_accept_ok_toast": "✅ Клиенту отправлено уведомление.",
         "order.usta_accept_status": "✅ <b>Принят</b>",
@@ -252,7 +438,6 @@ _MSG: dict[str, dict[str, str]] = {
             "👤 Мастер: <b>{name}</b>\n"
             "📞 Телефон: <b>{phone}</b>"
         ),
-        "order.complete_btn": "🏁 Завершить",
         "order.rate_prompt": (
             "⭐ Оцените работу мастера:\n"
             "1 — плохо · 5 — отлично"
@@ -266,6 +451,13 @@ _MSG: dict[str, dict[str, str]] = {
         "order.admin_rated": (
             "⭐ <b>Оценка заказа #{oid}: {rating}/5</b>\n"
             "👤 Мастер: <b>{name}</b>"
+        ),
+        "order.usta_notify_completed": (
+            "🏁 <b>Заказ #{oid}</b> — клиент подтвердил завершение работы.\n"
+            "⭐ Клиент может поставить оценку — отдельное уведомление придёт здесь."
+        ),
+        "order.usta_notify_rated": (
+            "⭐ По <b>заказу #{oid}</b> клиент поставил <b>{rating}/5</b>."
         ),
         "usta.claim_welcome": (
             "👷 <b>Подключение как мастер</b>\n\n"
@@ -284,9 +476,16 @@ _MSG: dict[str, dict[str, str]] = {
             "Заказ сохранён ✅ (№{oid}). Оператору пока не доставлено — проверьте ADMIN_CHAT_ID и /start у бота.\n\n"
             "Можно попробовать снова — выберите услугу."
         ),
-        "prompt.problem": "Кратко опишите проблему или задачу (одним сообщением).",
-        "prompt.suggestion": "Напишите предложение (одним сообщением).",
-        "prompt.admin_contact": "Напишите обращение (одним сообщением).",
+        "prompt.problem": (
+            "Опишите проблему или задачу <b>текстом</b>, <b>фото</b> или <b>видео</b> "
+            "(можно подпись к медиа). Одним сообщением."
+        ),
+        "prompt.suggestion": (
+            "Отправьте предложение текстом, фото или видео (подпись по желанию). Одним сообщением."
+        ),
+        "prompt.admin_contact": (
+            "Отправьте обращение текстом, фото или видео (подпись по желанию). Одним сообщением."
+        ),
         "kb.contact_placeholder": "Нажмите кнопку",
         "kb.services_placeholder": "Выберите услугу",
         "kb.no_section": "— нет разделов —",
@@ -297,7 +496,6 @@ _MSG: dict[str, dict[str, str]] = {
         "kb.ph_mebel": "Мебель: тип работы",
         "kb.ph_tv": "ТВ / техника: тип работы",
         "kb.ph_kond": "Кондиционер: тип работы",
-        "kb.location_placeholder": "Кнопка «Отправить местоположение»",
         "btn.send_location": "Отправить геолокацию",
         "btn.contact_share": "📱 Поделиться номером",
         "btn.back_sections": "◀️ К разделам",

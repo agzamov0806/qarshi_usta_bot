@@ -58,7 +58,7 @@ SANTEXNIKA_DETAIL_BY_SUB: dict[str, tuple[str, ...]] = {
         "Plastik, metall yoki boshqa turdagi quvurlar bilan ishlash",
     ),
     "Ta'mirlash va nosozlikni bartaraf qilish": (
-        "Oqayotgan kranlarni tuzatish",
+        "Tamchilab turgan kranlar va boshqa armaturalarni tuzatish",
         "Tiqilib qolgan kanalizatsiyani ochish",
         "Suv sizib chiqishini bartaraf qilish",
         "Unitaz yoki rakovinadagi muammolarni tuzatish",
@@ -614,20 +614,6 @@ async def build_services_keyboard(
     )
 
 
-def location_request_keyboard(locale: str = LANG_UZ) -> ReplyKeyboardMarkup:
-    """Joylashuv so‘rovi — faqat «Lokatsiyani yuborish» tugmasi."""
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(
-                    text=t(locale, "btn.send_location"),
-                    request_location=True,
-                ),
-            ]
-        ],
-        resize_keyboard=True,
-        input_field_placeholder=t(locale, "kb.location_placeholder"),
-    )
 
 
 def contact_keyboard(locale: str = LANG_UZ) -> ReplyKeyboardMarkup:

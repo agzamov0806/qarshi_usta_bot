@@ -88,6 +88,7 @@ async def show_main_menu(
         await message.answer(
             t(loc, "main.welcome") + extra,
             reply_markup=kb,
+            parse_mode="HTML",
         )
 
 
@@ -108,7 +109,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         return
     async with get_session_factory()() as session:
         if await users_repo.is_registered(session, uid):
-            await show_main_menu(message, state)
+            await open_language_picker(message, state, with_welcome=True)
             return
     await state.set_state(LanguageStates.picking)
     await message.answer(
@@ -135,7 +136,9 @@ async def _start_usta_claim(message: Message, state: FSMContext) -> None:
     )
 
 
-async def open_language_picker(message: Message, state: FSMContext) -> None:
+async def open_language_picker(
+    message: Message, state: FSMContext, *, with_welcome: bool = False
+) -> None:
     """Ro'yxatdan o'tgan foydalanuvchi yoki admin uchun til tanlash ekrani."""
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale(uid)
@@ -145,8 +148,11 @@ async def open_language_picker(message: Message, state: FSMContext) -> None:
                 await message.answer(t(loc, "reg.need_register"))
                 return
     await state.set_state(LanguageStates.picking)
+    text = t(loc, "lang.choose")
+    if with_welcome:
+        text = t(loc, "main.welcome") + "\n\n" + text
     await message.answer(
-        t(loc, "lang.choose"),
+        text,
         parse_mode="HTML",
         reply_markup=language_reply_keyboard(),
     )

@@ -21,8 +21,10 @@ def order_to_dict(o: Order) -> dict:
         "section_id": o.section_id,
         "section_kind": o.section_kind,
         "problem": o.problem,
+        "problem_media_json": o.problem_media_json,
         "lat": o.lat,
         "lon": o.lon,
+        "service_address_note": o.service_address_note,
         "status": o.status,
         "accepted_usta_name": o.accepted_usta_name,
         "accepted_usta_phone": o.accepted_usta_phone,
@@ -46,6 +48,8 @@ async def create_order(
     problem: str,
     lat: float | None,
     lon: float | None,
+    problem_media_json: str | None = None,
+    service_address_note: str | None = None,
 ) -> int:
     o = Order(
         client_tg_id=client_tg_id,
@@ -56,8 +60,10 @@ async def create_order(
         section_id=section_id,
         section_kind=section_kind,
         problem=problem,
+        problem_media_json=problem_media_json,
         lat=lat,
         lon=lon,
+        service_address_note=service_address_note,
         status="new",
     )
     session.add(o)
@@ -194,12 +200,14 @@ async def complete_order(
     actor_telegram_id: int,
     admin_id: int,
 ) -> tuple[bool, dict | None]:
-    """Usta yoki admin buyurtmani yakunlaydi (status=done, rating_requested=True)."""
+    """Mijoz yoki admin buyurtmani yakunlaydi (status=done, rating_requested=True)."""
     order = await session.get(Order, order_id)
     if not order or order.status != "accepted":
         return (False, None)
-    # Faqat qabul qilgan usta yoki admin yakunlay oladi
-    if actor_telegram_id != admin_id and order.accepted_usta_telegram_id != actor_telegram_id:
+    # Faqat mijoz yoki admin (usta tugmasi yo'q — yakunlash mijozda)
+    if actor_telegram_id != admin_id and int(order.client_tg_id) != int(
+        actor_telegram_id
+    ):
         return (False, None)
     order.status = "done"
     order.rating_requested = True

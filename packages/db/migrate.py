@@ -218,6 +218,18 @@ async def run_sqlite_migrations(engine: AsyncEngine) -> None:
             await conn.execute(
                 text("ALTER TABLE orders ADD COLUMN rating_requested INTEGER NOT NULL DEFAULT 0")
             )
+        r_ord3 = await conn.execute(text("PRAGMA table_info(orders)"))
+        ord_cols3 = {row[1] for row in r_ord3.fetchall()}
+        if ord_cols3 and "problem_media_json" not in ord_cols3:
+            await conn.execute(
+                text("ALTER TABLE orders ADD COLUMN problem_media_json TEXT")
+            )
+        r_ord4 = await conn.execute(text("PRAGMA table_info(orders)"))
+        ord_cols4 = {row[1] for row in r_ord4.fetchall()}
+        if ord_cols4 and "service_address_note" not in ord_cols4:
+            await conn.execute(
+                text("ALTER TABLE orders ADD COLUMN service_address_note TEXT")
+            )
 
 
 async def run_postgres_migrations(engine: AsyncEngine) -> None:
@@ -377,6 +389,8 @@ async def run_postgres_migrations(engine: AsyncEngine) -> None:
             ("accepted_usta_id", "INTEGER"),
             ("rating", "INTEGER"),
             ("rating_requested", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("problem_media_json", "TEXT"),
+            ("service_address_note", "TEXT"),
         ]:
             await conn.execute(
                 text(
