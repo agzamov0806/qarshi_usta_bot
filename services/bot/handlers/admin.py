@@ -1,5 +1,7 @@
 """Admin /admin va callbacklar."""
 
+from html import escape
+
 from aiogram import F
 from aiogram.filters import Command
 from aiogram.types import (
@@ -11,6 +13,7 @@ from aiogram.types import (
 
 from packages.db.repositories import orders as orders_repo
 from packages.db.repositories import section_ustas as section_ustas_repo
+from packages.db.repositories import users as users_repo
 from packages.db.session import get_session_factory
 from services.bot.callback_data import AdminCallback, OrderCallback
 from services.bot.formatters import format_order_detail
@@ -25,6 +28,7 @@ from services.bot.keyboards import (
     admin_main_keyboard,
 )
 from services.bot.callback_data import SectionCallback
+from services.bot.i18n import t
 from services.bot.router import router
 from shared.config import get_settings
 
@@ -351,23 +355,50 @@ async def cb_order_assign_usta(call: CallbackQuery, callback_data: OrderCallback
         su_row = await section_ustas_repo.get_by_id(session, callback_data.suid)
 
     if row and su_row and su_row.telegram_id:
-        from services.bot.handlers.orders import _complete_btn_kb
+        from services.bot.handlers.orders import _client_finish_kb
+
         try:
+            extra_addr = ""
+            if row.get("service_address_note"):
+                extra_addr = f"\n📌 Ish joyi: {row['service_address_note']}"
             await call.bot.send_message(
                 chat_id=int(su_row.telegram_id),
                 text=(
-                    f"📋 Admin siz uchun buyurtma tayinladi:\n\n"
+                    f"📋 Administrator yangi buyurtmani sizga yubordi:\n\n"
                     f"🆔 Buyurtma #{row['id']}\n"
                     f"🔧 Xizmat: {row['service']}\n"
-                    f"📝 Muammo: {row['problem']}\n"
+                    f"📝 Muammo: {row['problem']}"
+                    f"{extra_addr}\n"
                     f"👤 Mijoz: {row.get('client_name') or '—'}\n"
                     f"📞 Tel: {row.get('phone') or '—'}\n"
                     f"💬 Chat: tg://user?id={row['client_tg_id']}"
                 ),
-                reply_markup=_complete_btn_kb(row["id"], callback_data.suid),
             )
         except Exception as exc:
             log.error("assign_usta: ustaga xabar yuborishda xato: %s", exc)
+
+        client_id = int(row["client_tg_id"])
+        async with get_session_factory()() as session:
+            cloc = await users_repo.get_locale(session, client_id)
+        finish_hint = escape(t(cloc, "order.client_finish_hint"))
+        safe_assign_name = escape(name or "")
+        safe_assign_phone = escape(phone or "")
+        try:
+            await call.bot.send_message(
+                chat_id=client_id,
+                text=t(
+                    cloc,
+                    "order.admin_assigned_client",
+                    oid=str(row["id"]),
+                    name=safe_assign_name,
+                    phone=safe_assign_phone,
+                    finish_hint=finish_hint,
+                ),
+                parse_mode="HTML",
+                reply_markup=_client_finish_kb(row["id"], cloc),
+            )
+        except Exception as exc:
+            log.error("assign_usta: mijozga tayinlash xabari: %s", exc)
 
     await call.message.edit_text(
         f"✅ Buyurtma #{callback_data.order_id} — <b>{name}</b> ustaga tayinlandi.",

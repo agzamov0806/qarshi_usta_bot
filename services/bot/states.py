@@ -19,8 +19,10 @@ class OrderStates(StatesGroup):
     waiting_nested_section_entry = State()
     waiting_sub_service = State()
     waiting_sub_detail = State()
+    waiting_optional_media = State()  # ixtiyoriy media va lokatsiya/yozma manzil tugmalari (bir bosqich)
     waiting_problem = State()
     waiting_location_choice = State()
+    waiting_visit_address_note = State()  # xaritasiz yo'l — faqat yozma manzil
 
 
 class SectionAdminStates(StatesGroup):

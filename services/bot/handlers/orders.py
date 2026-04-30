@@ -1,10 +1,12 @@
 """Buyurtma oqimi."""
 
 import asyncio
+import json
 import logging
 from html import escape
 
 from aiogram import Bot, F
+from aiogram.enums import ContentType
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -12,8 +14,9 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    Location,
+    KeyboardButton,
     Message,
+    ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
 
@@ -34,6 +37,8 @@ from services.bot.formatters import (
     display_name_from_user,
 )
 from services.bot.i18n import (
+    LANG_RU,
+    LANG_UZ,
     back_detail_labels,
     back_sections_labels,
     nested_entry_list_labels,
@@ -61,7 +66,6 @@ from services.bot.keyboards import (
     is_payvandlash_section_title,
     is_santexnika_section_title,
     is_tv_maishiy_section_title,
-    location_request_keyboard,
     nested_detail_map_for_flow,
     nested_subs_for_flow,
 )
@@ -74,21 +78,141 @@ log = logging.getLogger(__name__)
 settings = get_settings()
 ADMIN_ID = settings.admin_chat_id
 
+_OPTIONAL_MEDIA_NEXT_LABELS = frozenset(
+    (
+        t(LANG_UZ, "order.optional_media_next_btn"),
+        t(LANG_RU, "order.optional_media_next_btn"),
+    )
+)
 
-def _complete_btn_kb(order_id: int, suid: int) -> InlineKeyboardMarkup:
-    """Usta uchun 'Tugatish' tugmali inline keyboard."""
+_ADDRESS_TEXT_ONLY_LABELS = frozenset(
+    (
+        t(LANG_UZ, "order.address_text_only_btn"),
+        t(LANG_RU, "order.address_text_only_btn"),
+    )
+)
+
+_MIN_WRITTEN_ADDRESS_LEN = 10
+_MAX_SERVICE_ADDRESS_NOTE_LEN = 800
+
+
+def _location_or_text_keyboard(
+    locale: str, *, input_placeholder_i18n: str = "order.address_choice_placeholder"
+) -> ReplyKeyboardMarkup:
+    """Lokatsiya yoki yozma manzil — yoshi katta foydalanuvchilarga sodda tanlov."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t(locale, "btn.send_location"), request_location=True)],
+            [KeyboardButton(text=t(locale, "order.address_text_only_btn"))],
+        ],
+        resize_keyboard=True,
+        input_field_placeholder=t(locale, input_placeholder_i18n),
+    )
+
+
+async def _enter_written_only_address_flow(
+    message: Message, state: FSMContext, locale: str
+) -> None:
+    await state.update_data(lat=None, lon=None, service_address_note=None)
+    await state.set_state(OrderStates.waiting_visit_address_note)
+    await message.answer(
+        t(locale, "order.address_written_prompt"),
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
+def _client_finish_kb(order_id: int, locale: str) -> InlineKeyboardMarkup:
+    """Mijoz: ish tugagach bosadi → keyingi bosqichda tasdiqlash."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="🏁 Tugatish",
+                    text=t(locale, "order.client_finish_btn"),
                     callback_data=OrderCallback(
-                        action="complete", order_id=order_id, suid=suid
+                        action="client_complete", order_id=order_id, suid=0
                     ).pack(),
                 )
             ]
         ]
     )
+
+
+def _client_confirm_kb(order_id: int, locale: str) -> InlineKeyboardMarkup:
+    """Haqiqatdan ham yakunlanganini tasdiqlash."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t(locale, "order.client_confirm_btn_yes"),
+                    callback_data=OrderCallback(
+                        action="client_confirm_yes",
+                        order_id=order_id,
+                        suid=0,
+                    ).pack(),
+                ),
+                InlineKeyboardButton(
+                    text=t(locale, "order.client_confirm_btn_no"),
+                    callback_data=OrderCallback(
+                        action="client_confirm_no",
+                        order_id=order_id,
+                        suid=0,
+                    ).pack(),
+                ),
+            ]
+        ]
+    )
+
+
+async def _send_order_media(
+    bot: Bot,
+    chat_id: int,
+    order_id: int,
+    media_items: list[dict],
+    *,
+    recipient: str,
+) -> None:
+    """Buyurtmadagi rasm/video fayllarni Telegram file_id orqali yuborish."""
+    if not media_items:
+        return
+    caption = f"📎 Buyurtma #{order_id}"
+    cap_left = True
+    for it in media_items:
+        fid = it.get("file_id")
+        typ = it.get("type")
+        if not fid or not typ:
+            continue
+        try:
+            c = caption if cap_left and typ != "video_note" else None
+            if typ == "photo":
+                await bot.send_photo(chat_id, fid, caption=c)
+            elif typ == "video":
+                await bot.send_video(chat_id, fid, caption=c)
+            elif typ == "animation":
+                await bot.send_animation(chat_id, fid, caption=c)
+            elif typ == "video_note":
+                await bot.send_video_note(chat_id, fid)
+            elif typ == "document":
+                await bot.send_document(chat_id, fid, caption=c)
+            else:
+                continue
+            cap_left = False
+        except TelegramBadRequest as e:
+            log.error(
+                "Buyurtma #%s: media (%s) %s chat_id=%s — %s",
+                order_id,
+                typ,
+                recipient,
+                chat_id,
+                e.message,
+            )
+        except Exception:
+            log.exception(
+                "Buyurtma #%s: media yuborilmadi %s chat_id=%s",
+                order_id,
+                recipient,
+                chat_id,
+            )
 
 
 async def _send_admin_order_notice(
@@ -99,13 +223,16 @@ async def _send_admin_order_notice(
     reply_markup: InlineKeyboardMarkup | None,
     order_id: int,
     recipient: str = "admin",
+    media_items: list[dict] | None = None,
 ) -> None:
     """Mijoz javobidan keyin fon rejimida — Telegram API bloklamaslik uchun."""
+    msg_ok = False
     try:
         kw: dict = {"chat_id": admin_chat_id, "text": text, "parse_mode": "HTML"}
         if reply_markup is not None:
             kw["reply_markup"] = reply_markup
         await bot.send_message(**kw)
+        msg_ok = True
     except TelegramBadRequest as e:
         msg = (e.message or "").lower()
         if "chat not found" in msg or "peer_id_invalid" in msg:
@@ -132,6 +259,87 @@ async def _send_admin_order_notice(
             recipient,
             admin_chat_id,
         )
+    if msg_ok and media_items:
+        await _send_order_media(
+            bot, admin_chat_id, order_id, media_items, recipient=recipient
+        )
+
+
+def _spawn_usta_order_notice(
+    bot: Bot,
+    *,
+    accepted_usta_tg_id: int | None,
+    i18n_key: str,
+    order_id: int,
+    **fmt: str,
+) -> None:
+    """Qabul qilgan ustaga: ish yakunlanganligi yoki baho (fon rejimida)."""
+    if accepted_usta_tg_id is None:
+        return
+    try:
+        tid = int(accepted_usta_tg_id)
+    except (TypeError, ValueError):
+        return
+    if tid <= 0:
+        return
+
+    async def _run() -> None:
+        try:
+            async with get_session_factory()() as session:
+                loc = await users_repo.get_locale(session, tid)
+            await bot.send_message(
+                tid,
+                t(loc, i18n_key, **fmt),
+                parse_mode="HTML",
+            )
+        except Exception:
+            log.exception(
+                "Ustaga bildirishnos yuborilmadi order=#%s key=%s",
+                order_id,
+                i18n_key,
+            )
+
+    asyncio.create_task(_run(), name=f"usta_{i18n_key}_{order_id}")
+
+
+async def _go_to_location_after_problem(
+    message: Message,
+    state: FSMContext,
+    *,
+    problem: str,
+    media_items: list[dict],
+    loc: str,
+) -> None:
+    await state.update_data(problem=problem.strip(), problem_media=media_items)
+    await state.set_state(OrderStates.waiting_location_choice)
+    await message.answer(
+        t(loc, "order.location_prompt"),
+        parse_mode="HTML",
+        reply_markup=_location_or_text_keyboard(loc),
+    )
+
+
+async def _append_optional_media_item(
+    state: FSMContext, *, media_type: str, file_id: str
+) -> None:
+    data = await state.get_data()
+    cur = list(data.get("problem_media") or [])
+    cur.append({"type": media_type, "file_id": file_id})
+    await state.update_data(problem_media=cur)
+
+
+async def _go_to_location_from_optional_media(
+    message: Message, state: FSMContext, loc: str
+) -> None:
+    """Qadimiy «Keyingi — lokatsiya» tugmasi (eski sessiyalar uchun); qo'shimcha zo'r emas."""
+    await state.set_state(OrderStates.waiting_location_choice)
+    await message.answer(
+        t(loc, "order.optional_media_legacy_continue"),
+        parse_mode="HTML",
+        reply_markup=_location_or_text_keyboard(
+            loc, input_placeholder_i18n="order.optional_media_input_ph"
+        ),
+    )
 
 NESTED_FLOW_SANTEXNIKA = "santexnika"
 NESTED_FLOW_PAYVANDLASH = "payvandlash"
@@ -184,12 +392,15 @@ async def _continue_order_after_selection(
     problem_text: str,
     loc: str,
 ) -> None:
-    """Tanlov tugagach muammoni avtomatik to'ldirish; qo'shimcha matn so'ralmaydi."""
-    await state.update_data(problem=problem_text.strip())
-    await state.set_state(OrderStates.waiting_location_choice)
+    """Tanlov tugagach (ro'yxat): avval ixtiyoriy rasm/video, keyin lokatsiya."""
+    await state.update_data(problem=problem_text.strip(), problem_media=[])
+    await state.set_state(OrderStates.waiting_optional_media)
     await message.answer(
-        t(loc, "order.location_prompt"),
-        reply_markup=location_request_keyboard(loc),
+        t(loc, "order.optional_media_prompt"),
+        parse_mode="HTML",
+        reply_markup=_location_or_text_keyboard(
+            loc, input_placeholder_i18n="order.optional_media_input_ph"
+        ),
     )
 
 
@@ -289,6 +500,7 @@ async def nested_entry_chose_manual(message: Message, state: FSMContext) -> None
     await state.set_state(OrderStates.waiting_problem)
     await message.answer(
         t(loc, "prompt.problem"),
+        parse_mode="HTML",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -558,15 +770,262 @@ async def nested_sub_l2_bad(message: Message) -> None:
     await message.answer(t(loc, "order.sub_non_text"))
 
 
-@router.message(StateFilter(OrderStates.waiting_problem), F.text)
+
+async def _accept_gps_and_finalize_order(
+    message: Message, state: FSMContext, bot: Bot
+) -> None:
+    pin = message.location
+    if pin is None:
+        log.warning(
+            "Lokatsiya xabari coords siz: uid=%s",
+            message.from_user.id if message.from_user else 0,
+        )
+        loc = await _locale_for_user(message.from_user.id if message.from_user else 0)
+        await message.answer(t(loc, "order.location_hint"), parse_mode="HTML")
+        return
+    await state.update_data(
+        lat=pin.latitude,
+        lon=pin.longitude,
+        service_address_note=None,
+    )
+    await finalize_order(message, state, bot)
+
+
+@router.message(StateFilter(OrderStates.waiting_optional_media), F.location)
+async def optional_media_location_received(
+    message: Message, state: FSMContext, bot: Bot
+) -> None:
+    """Ixtiyoriy rasm qadamida joy yuborilsa — ikkinchi «lokatsiya» bosqichisiz yakunlash."""
+    await _accept_gps_and_finalize_order(message, state, bot)
+
+
+@router.message(
+    StateFilter(OrderStates.waiting_optional_media),
+    F.text.in_(_OPTIONAL_MEDIA_NEXT_LABELS),
+)
+async def optional_media_then_location(message: Message, state: FSMContext) -> None:
+    """Eski klaviaturadagi «Keyingi — lokatsiya» (joʻnatish qolgan sessiyalar)."""
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    await _go_to_location_from_optional_media(message, state, loc)
+
+
+@router.message(
+    StateFilter(OrderStates.waiting_optional_media),
+    F.text.in_(_ADDRESS_TEXT_ONLY_LABELS),
+)
+async def optional_media_chose_written_address(
+    message: Message, state: FSMContext
+) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    locale = await _locale_for_user(uid)
+    await _enter_written_only_address_flow(message, state, locale)
+
+
+async def _optional_media_ack_after_append(message: Message, loc: str) -> None:
+    await message.answer(
+        t(loc, "order.optional_media_saved"),
+        parse_mode="HTML",
+    )
+
+
+@router.message(StateFilter(OrderStates.waiting_optional_media), F.photo)
+async def optional_media_photo(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    if not message.photo:
+        return
+    await _append_optional_media_item(
+        state, media_type="photo", file_id=message.photo[-1].file_id
+    )
+    await _optional_media_ack_after_append(message, loc)
+
+
+@router.message(StateFilter(OrderStates.waiting_optional_media), F.video)
+async def optional_media_video(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    if not message.video:
+        return
+    await _append_optional_media_item(state, media_type="video", file_id=message.video.file_id)
+    await _optional_media_ack_after_append(message, loc)
+
+
+@router.message(StateFilter(OrderStates.waiting_optional_media), F.animation)
+async def optional_media_animation(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    if not message.animation:
+        return
+    await _append_optional_media_item(
+        state, media_type="animation", file_id=message.animation.file_id
+    )
+    await _optional_media_ack_after_append(message, loc)
+
+
+@router.message(StateFilter(OrderStates.waiting_optional_media), F.video_note)
+async def optional_media_video_note(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    if not message.video_note:
+        return
+    await _append_optional_media_item(
+        state, media_type="video_note", file_id=message.video_note.file_id
+    )
+    await _optional_media_ack_after_append(message, loc)
+
+
+@router.message(StateFilter(OrderStates.waiting_optional_media), F.document)
+async def optional_media_document(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    doc = message.document
+    if not doc or not doc.mime_type:
+        await message.answer(t(loc, "order.problem_file_not_supported"))
+        return
+    mime = doc.mime_type.lower()
+    if not (mime.startswith("image/") or mime.startswith("video/")):
+        await message.answer(t(loc, "order.problem_file_not_supported"))
+        return
+    mt = "document"
+    await _append_optional_media_item(state, media_type=mt, file_id=doc.file_id)
+    await _optional_media_ack_after_append(message, loc)
+
+
+@router.message(StateFilter(OrderStates.waiting_optional_media), F.content_type == ContentType.TEXT)
+async def optional_media_supplementary_text(message: Message, state: FSMContext) -> None:
+    """Qo'shimcha izoh — ro'yxatdagi sarlavhaga qoʻshiladi; yakun uchun tugmalardan."""
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    raw = (message.text or "").strip()
+    if not raw:
+        await message.answer(t(loc, "order.optional_media_text_only"), parse_mode="HTML")
+        return
+    MAX_PROBLEM = 3900
+    data = await state.get_data()
+    base = (data.get("problem") or "").strip()
+    combined = f"{base}\n\n{raw}".strip() if base else raw
+    if len(combined) > MAX_PROBLEM:
+        combined = combined[:MAX_PROBLEM].rstrip()
+    await state.update_data(problem=combined)
+    await message.answer(t(loc, "order.optional_media_note_appended"), parse_mode="HTML")
+
+
+@router.message(StateFilter(OrderStates.waiting_optional_media))
+async def optional_media_fallback_any(message: Message) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    await message.answer(t(loc, "order.optional_media_fallback"))
+
+
+@router.message(StateFilter(OrderStates.waiting_problem), F.photo)
+async def problem_photo(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    if not message.photo:
+        return
+    fid = message.photo[-1].file_id
+    cap = (message.caption or "").strip()
+    problem = cap if cap else t(loc, "order.problem_placeholder_photo")
+    await _go_to_location_after_problem(
+        message,
+        state,
+        problem=problem,
+        media_items=[{"type": "photo", "file_id": fid}],
+        loc=loc,
+    )
+
+
+@router.message(StateFilter(OrderStates.waiting_problem), F.video)
+async def problem_video(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    if not message.video:
+        return
+    fid = message.video.file_id
+    cap = (message.caption or "").strip()
+    problem = cap if cap else t(loc, "order.problem_placeholder_video")
+    await _go_to_location_after_problem(
+        message,
+        state,
+        problem=problem,
+        media_items=[{"type": "video", "file_id": fid}],
+        loc=loc,
+    )
+
+
+@router.message(StateFilter(OrderStates.waiting_problem), F.animation)
+async def problem_animation(message: Message, state: FSMContext) -> None:
+    """GIF / gif animatsiya."""
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    if not message.animation:
+        return
+    fid = message.animation.file_id
+    cap = (message.caption or "").strip()
+    problem = cap if cap else t(loc, "order.problem_placeholder_video")
+    await _go_to_location_after_problem(
+        message,
+        state,
+        problem=problem,
+        media_items=[{"type": "animation", "file_id": fid}],
+        loc=loc,
+    )
+
+
+@router.message(StateFilter(OrderStates.waiting_problem), F.video_note)
+async def problem_video_note(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    if not message.video_note:
+        return
+    fid = message.video_note.file_id
+    await _go_to_location_after_problem(
+        message,
+        state,
+        problem=t(loc, "order.problem_placeholder_video"),
+        media_items=[{"type": "video_note", "file_id": fid}],
+        loc=loc,
+    )
+
+
+@router.message(StateFilter(OrderStates.waiting_problem), F.document)
+async def problem_document_media(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale_for_user(uid)
+    doc = message.document
+    if not doc or not doc.mime_type:
+        await message.answer(t(loc, "order.problem_file_not_supported"))
+        return
+    mime = doc.mime_type.lower()
+    if not (mime.startswith("image/") or mime.startswith("video/")):
+        await message.answer(t(loc, "order.problem_file_not_supported"))
+        return
+    fid = doc.file_id
+    cap = (message.caption or "").strip()
+    if mime.startswith("image/"):
+        problem = cap if cap else t(loc, "order.problem_placeholder_photo")
+    else:
+        problem = cap if cap else t(loc, "order.problem_placeholder_video")
+    await _go_to_location_after_problem(
+        message,
+        state,
+        problem=problem,
+        media_items=[{"type": "document", "file_id": fid}],
+        loc=loc,
+    )
+
+
+@router.message(StateFilter(OrderStates.waiting_problem), F.content_type == ContentType.TEXT)
 async def problem_received(message: Message, state: FSMContext) -> None:
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale_for_user(uid)
-    await state.update_data(problem=message.text.strip())
-    await state.set_state(OrderStates.waiting_location_choice)
-    await message.answer(
-        t(loc, "order.location_prompt"),
-        reply_markup=location_request_keyboard(loc),
+    await _go_to_location_after_problem(
+        message,
+        state,
+        problem=message.text or "",
+        media_items=[],
+        loc=loc,
     )
 
 
@@ -579,44 +1038,95 @@ async def problem_not_text(message: Message) -> None:
 
 @router.message(StateFilter(OrderStates.waiting_location_choice), F.location)
 async def location_received(message: Message, state: FSMContext, bot: Bot) -> None:
-    loc: Location = message.location
-    await state.update_data(lat=loc.latitude, lon=loc.longitude)
+    await _accept_gps_and_finalize_order(message, state, bot)
+
+
+@router.message(
+    StateFilter(OrderStates.waiting_location_choice),
+    F.text.in_(_ADDRESS_TEXT_ONLY_LABELS),
+)
+async def chose_written_address_only(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    locale = await _locale_for_user(uid)
+    await _enter_written_only_address_flow(message, state, locale)
+
+
+@router.message(StateFilter(OrderStates.waiting_visit_address_note), F.text)
+async def visit_address_text(message: Message, state: FSMContext, bot: Bot) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    locale = await _locale_for_user(uid)
+    raw = (message.text or "").strip()
+    if len(raw) < _MIN_WRITTEN_ADDRESS_LEN:
+        await message.answer(
+            t(locale, "order.visit_address_too_short"), parse_mode="HTML"
+        )
+        return
+    if len(raw) > _MAX_SERVICE_ADDRESS_NOTE_LEN:
+        raw = raw[:_MAX_SERVICE_ADDRESS_NOTE_LEN]
+    await state.update_data(service_address_note=raw)
     await finalize_order(message, state, bot)
+
+
+@router.message(StateFilter(OrderStates.waiting_visit_address_note))
+async def visit_address_fallback_msg(message: Message) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    locale = await _locale_for_user(uid)
+    await message.answer(t(locale, "order.visit_address_fallback"))
 
 
 @router.message(StateFilter(OrderStates.waiting_location_choice))
 async def location_hint(message: Message) -> None:
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale_for_user(uid)
-    await message.answer(t(loc, "order.location_hint"))
+    await message.answer(t(loc, "order.location_hint"), parse_mode="HTML")
 
 
 async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
     data = await state.get_data()
-    await state.clear()
 
     service = data.get("service", "?")
     section_kind = data.get("section_kind")
     problem = data.get("problem", "?")
+    problem_media: list[dict] = data.get("problem_media") or []
+    problem_media_json = (
+        json.dumps(problem_media, ensure_ascii=False) if problem_media else None
+    )
     lat = data.get("lat")
     lon = data.get("lon")
+    raw_note = (data.get("service_address_note") or "").strip()
+    snote: str | None = raw_note if raw_note else None
 
     user = message.from_user
     client_tg_id = user.id if user else 0
     loc = await _locale_for_user(client_tg_id)
 
-    section_id_fsm = data.get("section_id")
-    usta_rows: list[dict] = []
-
     async with get_session_factory()() as session:
         reg = await users_repo.get_user(session, client_tg_id)
         if client_tg_id != ADMIN_ID and not reg:
+            await state.clear()
             await message.answer(
                 t(loc, "order.session_bad"),
                 reply_markup=ReplyKeyboardRemove(),
             )
             return
 
+    has_coords = lat is not None and lon is not None
+    if not has_coords and snote is None:
+        await state.set_state(OrderStates.waiting_location_choice)
+        await message.answer(
+            t(loc, "order.finalize_need_geo_or_address"),
+            parse_mode="HTML",
+            reply_markup=_location_or_text_keyboard(loc),
+        )
+        return
+
+    await state.clear()
+
+    section_id_fsm = data.get("section_id")
+    usta_rows: list[dict] = []
+
+    async with get_session_factory()() as session:
+        reg = await users_repo.get_user(session, client_tg_id)
         profile_full_name: str | None = None
         phone: str | None = None
         if reg:
@@ -642,6 +1152,8 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
             problem=problem,
             lat=float(lat) if lat is not None else None,
             lon=float(lon) if lon is not None else None,
+            problem_media_json=problem_media_json,
+            service_address_note=snote,
         )
         if section_id_fsm:
             usta_rows = await section_ustas_repo.list_claimed_for_section(
@@ -681,10 +1193,20 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
         header = f"🆕 Yangi buyurtma #{order_id}"
         detail_label = "Muammo"
 
+    media_line = ""
+    if problem_media:
+        media_line = f"📎 Rasm/video: {len(problem_media)} ta fayl\n"
+
+    addr_line = ""
+    if snote:
+        addr_line = f"📌 Usta borishi kerak joy (mijoz matni): {escape(snote)}\n"
+
     body_block = (
         f"{user_line}\n"
         f"Xizmat: {service}\n"
         f"{detail_label}: {problem}\n"
+        f"{media_line}"
+        f"{addr_line}"
         f"{loc_line}"
     )
     text = f"{header}\n{body_block}"
@@ -719,6 +1241,7 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
             reply_markup=notify_kb,
             order_id=order_id,
             recipient="admin",
+            media_items=problem_media if problem_media else None,
         ),
         name=f"admin_notify_order_{order_id}",
     )
@@ -763,6 +1286,7 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
                 reply_markup=usta_kb,
                 order_id=order_id,
                 recipient=f"usta#{ur['id']}",
+                media_items=problem_media if problem_media else None,
             ),
             name=f"usta_notify_order_{order_id}_{ur['id']}",
         )
@@ -819,41 +1343,32 @@ async def cb_order_accept_usta(
 
     safe_name = escape(acc_name or "")
     safe_phone = escape(acc_phone or "")
+    finish_hint = escape(t(cloc, "order.client_finish_hint"))
     client_html = t(
         cloc,
         "order.usta_accepted_client",
         name=safe_name,
         phone=safe_phone,
+        finish_hint=finish_hint,
     )
     try:
         await bot.send_message(
             client_id,
             client_html,
             parse_mode="HTML",
+            reply_markup=_client_finish_kb(oid, cloc),
         )
     except Exception:
         log.exception("Mijozga usta qabul xabari yuborilmadi order=%s", oid)
 
-    # Usta xabarini yangilash — "Tugatish" tugmasi bilan
+    # Usta xabarini yangilash — faqat holat (yakunlash tugmasi mijozda)
     try:
-        old_text = call.message.text or call.message.html_text or ""
+        old_html = call.message.html_text or call.message.text or ""
         status_line = t(usta_loc, "order.usta_accept_status")
-        complete_kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text=t(usta_loc, "order.complete_btn"),
-                        callback_data=OrderCallback(
-                            action="complete", order_id=oid, suid=suid
-                        ).pack(),
-                    )
-                ]
-            ]
-        )
         await call.message.edit_text(
-            old_text + f"\n\n{status_line}",
+            old_html + f"\n\n{status_line}",
             parse_mode="HTML",
-            reply_markup=complete_kb,
+            reply_markup=None,
         )
     except Exception:
         try:
@@ -888,12 +1403,94 @@ async def cb_order_accept_usta(
 
 
 @router.callback_query(OrderCallback.filter(F.action == "complete"))
-async def cb_order_complete_usta(
+async def cb_order_complete_deprecated(call: CallbackQuery) -> None:
+    """Eski usta «Tugatish» tugmalari uchun."""
+    await call.answer(
+        "Endi buyurtmani mijoz «Usta ishni tugatdi» tugmasi bilan yakunlaydi.",
+        show_alert=True,
+    )
+
+
+@router.callback_query(OrderCallback.filter(F.action == "client_complete"))
+async def cb_order_client_prompt_confirm(
     call: CallbackQuery, callback_data: OrderCallback, bot: Bot
 ) -> None:
+    """Birinchi bosish — ogohlantiruv popup va «Ha» / «Bekor» tugmalari."""
     actor = call.from_user.id if call.from_user else 0
     oid = callback_data.order_id
-    suid = callback_data.suid
+
+    async with get_session_factory()() as session:
+        row_pre = await orders_repo.get_order(session, oid)
+    if not row_pre:
+        await call.answer("Buyurtma topilmadi.", show_alert=True)
+        return
+    if int(row_pre["client_tg_id"]) != int(actor):
+        await call.answer("Bu tugma faqat buyurtma egasi uchun.", show_alert=True)
+        return
+    if row_pre.get("status") != "accepted":
+        async with get_session_factory()() as session:
+            cloc = await users_repo.get_locale(session, actor)
+        await call.answer(t(cloc, "order.client_complete_not_accepted"), show_alert=True)
+        return
+
+    async with get_session_factory()() as session:
+        cloc = await users_repo.get_locale(session, actor)
+
+    await call.answer(
+        t(cloc, "order.client_confirm_alert_question"),
+        show_alert=True,
+    )
+    try:
+        await call.message.edit_reply_markup(
+            reply_markup=_client_confirm_kb(oid, cloc)
+        )
+    except Exception:
+        log.exception("client_complete: reply_markup yangilashda xato order=%s", oid)
+
+
+@router.callback_query(OrderCallback.filter(F.action == "client_confirm_no"))
+async def cb_order_client_confirm_no(
+    call: CallbackQuery, callback_data: OrderCallback, bot: Bot
+) -> None:
+    """Tasodifiy bosish — avvalgi «Usta ishni tugatdi» tugmasini qaytarish."""
+    actor = call.from_user.id if call.from_user else 0
+    oid = callback_data.order_id
+
+    async with get_session_factory()() as session:
+        row_pre = await orders_repo.get_order(session, oid)
+    if not row_pre or int(row_pre["client_tg_id"]) != int(actor):
+        await call.answer("Ruxsat yo'q.", show_alert=True)
+        return
+
+    async with get_session_factory()() as session:
+        cloc = await users_repo.get_locale(session, actor)
+
+    try:
+        await call.message.edit_reply_markup(
+            reply_markup=_client_finish_kb(oid, cloc)
+        )
+    except Exception:
+        log.exception("client_confirm_no: reply_markup order=%s", oid)
+
+    await call.answer(t(cloc, "order.client_confirm_cancel_toast"), show_alert=False)
+
+
+@router.callback_query(OrderCallback.filter(F.action == "client_confirm_yes"))
+async def cb_order_client_confirm_yes(
+    call: CallbackQuery, callback_data: OrderCallback, bot: Bot
+) -> None:
+    """Tasdiq — buyurtmani yakunlash va baholash."""
+    actor = call.from_user.id if call.from_user else 0
+    oid = callback_data.order_id
+
+    async with get_session_factory()() as session:
+        row_pre = await orders_repo.get_order(session, oid)
+    if not row_pre:
+        await call.answer("Buyurtma topilmadi.", show_alert=True)
+        return
+    if int(row_pre["client_tg_id"]) != int(actor):
+        await call.answer("Bu tugma faqat buyurtma egasi uchun.", show_alert=True)
+        return
 
     async with get_session_factory()() as session:
         ok, row = await orders_repo.complete_order(
@@ -904,18 +1501,26 @@ async def cb_order_complete_usta(
         )
 
     if not ok or not row:
-        await call.answer("Buyurtma yakunlanmadi (allaqachon tugagan yoki ruxsat yo'q).", show_alert=True)
+        async with get_session_factory()() as session:
+            cloc = await users_repo.get_locale(session, actor)
+        await call.answer(
+            t(cloc, "order.client_complete_failed"),
+            show_alert=True,
+        )
         return
 
     client_id = int(row["client_tg_id"])
+    usta_suid = int(row.get("accepted_usta_id") or 0)
     usta_name = escape(row.get("accepted_usta_name") or "")
     usta_phone = escape(row.get("accepted_usta_phone") or "")
 
-    # Usta xabarida "Tugatish" tugmasini olib tashlash
+    async with get_session_factory()() as session:
+        cloc = await users_repo.get_locale(session, client_id)
+
     try:
-        old_text = call.message.text or call.message.html_text or ""
+        old_html = call.message.html_text or call.message.text or ""
         await call.message.edit_text(
-            old_text + "\n\n🏁 <b>Yakunlandi</b>",
+            old_html + "\n\n" + t(cloc, "order.client_completed_line"),
             parse_mode="HTML",
             reply_markup=None,
         )
@@ -925,10 +1530,6 @@ async def cb_order_complete_usta(
         except Exception:
             pass
 
-    # Mijozga baholash so'rovi
-    async with get_session_factory()() as session:
-        cloc = await users_repo.get_locale(session, client_id)
-
     rate_kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -937,7 +1538,7 @@ async def cb_order_complete_usta(
                     callback_data=OrderCallback(
                         action="rate",
                         order_id=oid,
-                        suid=int(row.get("accepted_usta_id") or suid),
+                        suid=usta_suid,
                         rating=i,
                     ).pack(),
                 )
@@ -955,7 +1556,6 @@ async def cb_order_complete_usta(
     except Exception:
         log.exception("Mijozga baholash so'rovi yuborilmadi order=%s", oid)
 
-    # Adminga yakunlandi xabari
     admin_text = t(
         "uz",
         "order.admin_completed",
@@ -975,7 +1575,15 @@ async def cb_order_complete_usta(
         name=f"admin_complete_notify_{oid}",
     )
 
-    await call.answer("✅ Yakunlandi!", show_alert=False)
+    _spawn_usta_order_notice(
+        bot,
+        accepted_usta_tg_id=row.get("accepted_usta_telegram_id"),
+        i18n_key="order.usta_notify_completed",
+        order_id=oid,
+        oid=str(oid),
+    )
+
+    await call.answer(t(cloc, "order.client_finish_toast"), show_alert=False)
 
 
 @router.callback_query(OrderCallback.filter(F.action == "rate"))
@@ -1043,6 +1651,15 @@ async def cb_order_rate(
         name=f"admin_rating_notify_{oid}",
     )
 
+    _spawn_usta_order_notice(
+        bot,
+        accepted_usta_tg_id=(row or {}).get("accepted_usta_telegram_id"),
+        i18n_key="order.usta_notify_rated",
+        order_id=oid,
+        oid=str(oid),
+        rating=str(rating),
+    )
+
     await call.answer()
 
 
@@ -1089,8 +1706,8 @@ async def cb_order_reject_usta(
         pass
 
     await call.message.answer(
-        f"❌ Buyurtma #{oid} — rad etish sababini yozing:\n"
-        f"(Sabab adminga yuboriladi va admin boshqa ustaga berishi mumkin)"
+        f"❌ Buyurtma #{oid}: rad etish sababini yozing.\n\n"
+        "Sabab administratorga yuboriladi; kerak boʻlsa boshqa usta tayinlanadi."
     )
     await call.answer()
 
@@ -1099,7 +1716,7 @@ async def cb_order_reject_usta(
 async def reject_reason_received(message: Message, state: FSMContext, bot: Bot) -> None:
     """Usta sabab matnini yubordi — adminga xabar, ustaga tasdiqlash."""
     if not message.text or not message.text.strip():
-        await message.answer("Sabab bo'sh bo'lishi mumkin emas. Matn kiriting:")
+        await message.answer("Sababsiz yozib boʻlmaydi. Qisqa sabab yozing:")
         return
 
     data = await state.get_data()
@@ -1126,7 +1743,7 @@ async def reject_reason_received(message: Message, state: FSMContext, bot: Bot) 
         f"❌ <b>Buyurtma #{oid} rad etildi</b>\n\n"
         f"👷 Usta: {escape(usta_name)}\n"
         f"📝 Sabab: {escape(reason)}\n\n"
-        f"Boshqa ustaga tayinlash uchun quyidagi tugmani bosing:"
+        f"Boshqa usta uchun quyidagi tugmani bosing:"
     )
     assign_kb = InlineKeyboardMarkup(
         inline_keyboard=[

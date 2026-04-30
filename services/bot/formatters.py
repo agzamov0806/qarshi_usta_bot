@@ -1,5 +1,8 @@
 """Matn formatlash (admin xabarlari)."""
 
+import json
+from html import escape
+
 from aiogram.types import User
 
 from packages.db.repositories.sections import KIND_ADMIN_CONTACT, KIND_SUGGESTION
@@ -39,6 +42,19 @@ def format_order_detail(row: dict) -> str:
             f"👷 Usta: {row.get('accepted_usta_name') or '—'}\n"
             f"📞 Usta tel: {row.get('accepted_usta_phone') or '—'}\n"
         )
+    media_line = ""
+    raw_m = row.get("problem_media_json")
+    if raw_m:
+        try:
+            n = len(json.loads(raw_m))
+            if n > 0:
+                media_line = f"📎 Rasm/video: {n} ta (xabarlarda)\n"
+        except json.JSONDecodeError:
+            pass
+    note_line = ""
+    sa = row.get("service_address_note")
+    if sa and str(sa).strip():
+        note_line = f"📌 Usta borishi kerak joy (mijoz):\n{escape(str(sa).strip())}\n\n"
     return (
         f"🆔 Buyurtma #{row['id']}\n"
         f"🕐 {row['created_at']}\n"
@@ -51,7 +67,9 @@ def format_order_detail(row: dict) -> str:
         f"💬 Chat: tg://user?id={cid}\n"
         f"🌐 t.me: {tme}\n"
         f"🔧 Xizmat: {row['service']}\n"
+        f"{media_line}"
         f"📝 {plabel}:\n{row['problem']}\n"
+        f"{note_line}"
         f"📍 Lokatsiya: {loc}"
     )
 

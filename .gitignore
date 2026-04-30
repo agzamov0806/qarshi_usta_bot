@@ -1,4 +1,10 @@
+# Tokenlar va maxfiy konfig — hech qachon commit qilinmasin
 .env
+.env.local
+.env.*.local
+# Namuna fayl bilan almashtirish: copy .env.example .env
+!.env.example
+
 data/
 *.db
 *.db-shm

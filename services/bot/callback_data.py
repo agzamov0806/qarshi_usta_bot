@@ -4,9 +4,9 @@ from aiogram.filters.callback_data import CallbackData
 
 
 class OrderCallback(CallbackData, prefix="ord"):
-    action: str  # view, done, accept, reject, complete, rate, assign_pick, assign_usta
+    action: str  # view, done, accept, reject, client_complete, client_confirm_yes, client_confirm_no, rate, ...
     order_id: int
-    suid: int = 0  # section_ustas.id — faqat action=accept/reject/complete/rate/assign_usta
+    suid: int = 0  # section_ustas.id — accept/reject/rate/assign_usta
     rating: int = 0  # action=rate uchun: 1-5
 
 
