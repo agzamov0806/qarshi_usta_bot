@@ -223,6 +223,44 @@ _MSG: dict[str, dict[str, str]] = {
             "Adminga murojaat qiling."
         ),
         "usta.claim_already": "ℹ️ Bu telefon raqam usta sifatida allaqachon ro'yxatda.",
+        "usta.reg_welcome": (
+            "👷 <b>Usta sifatida ro'yxatdan o'tish</b>\n\n"
+            "1/4 — <b>Ismingizni</b> yozing (masalan: Ali)."
+        ),
+        "usta.reg_last_name": "2/4 — <b>Familiyangizni</b> yozing (masalan: Karimov).",
+        "usta.reg_contact": (
+            "3/4 — <b>Telefon raqamingizni ulashing</b> (pastdagi tugma).\n"
+            "Faqat o'z raqamingiz."
+        ),
+        "usta.reg_section": "4/4 — <b>Qaysi sohada ustasiz?</b> Bo'limni tanlang.",
+        "usta.reg_submitted": (
+            "✅ <b>Arizangiz yuborildi!</b>\n\n"
+            "Admin tekshirib tasdiqlaydi. Javob uchun kutamiz."
+        ),
+        "usta.approved": (
+            "✅ <b>Arizangiz tasdiqlandi!</b>\n\n"
+            "Siz <b>{section}</b> bo'limi ustasi sifatida ro'yxatga kiritildingiz.\n"
+            "Yangi buyurtmalar kelganda sizga xabar yuboramiz."
+        ),
+        "usta.rejected": (
+            "❌ <b>Arizangiz rad etildi.</b>\n\n"
+            "Adminga murojaat qiling."
+        ),
+        "usta.added_by_admin": (
+            "ℹ️ <b>Siz usta sifatida qo'shildingiz!</b>\n\n"
+            "Bo'lim: <b>{section}</b>\n"
+            "Yangi buyurtmalar kelganda sizga xabar yuboramiz."
+        ),
+        "usta.reg_no_sections": (
+            "❌ <b>Hozir bo'lim yo'q</b>\n\n"
+            "Admin bo'lim qo'shgandan keyin qayta urinib ko'ring.\n"
+            "/start usta — keyinroq"
+        ),
+        "usta.reg_section_deleted": (
+            "❌ <b>Bo'lim o'chirildi</b>\n\n"
+            "Registration paytida bo'lim o'chirildi.\n"
+            "/start usta — qayta urinish"
+        ),
         "order.fail_order": (
             "Buyurtma saqlandi ✅ (№{oid}). Operatorga xabar vaqtincha bormadi — "
             "ADMIN_CHAT_ID va bot bilan /start ni tekshiring.\n\n"
@@ -472,6 +510,44 @@ _MSG: dict[str, dict[str, str]] = {
             "Свяжитесь с администратором."
         ),
         "usta.claim_already": "ℹ️ Вы уже подключены к боту как мастер.",
+        "usta.reg_welcome": (
+            "👷 <b>Регистрация мастера</b>\n\n"
+            "1/4 — Напишите <b>имя</b> (например: Али)."
+        ),
+        "usta.reg_last_name": "2/4 — Напишите <b>фамилию</b> (например: Каримов).",
+        "usta.reg_contact": (
+            "3/4 — <b>Отправьте номер телефона</b> (кнопка ниже).\n"
+            "Только свой номер."
+        ),
+        "usta.reg_section": "4/4 — <b>Какая ваша специальность?</b> Выберите раздел.",
+        "usta.reg_submitted": (
+            "✅ <b>Заявка отправлена!</b>\n\n"
+            "Администратор проверит и подтвердит. Мы дадим вам знать."
+        ),
+        "usta.approved": (
+            "✅ <b>Ваша заявка одобрена!</b>\n\n"
+            "Вы зарегистрированы как мастер раздела <b>{section}</b>.\n"
+            "Уведомления о новых заказах поступят сюда."
+        ),
+        "usta.rejected": (
+            "❌ <b>Ваша заявка отклонена.</b>\n\n"
+            "Обратитесь к администратору."
+        ),
+        "usta.added_by_admin": (
+            "ℹ️ <b>Вы добавлены как мастер!</b>\n\n"
+            "Раздел: <b>{section}</b>\n"
+            "Уведомления о новых заказах поступят сюда."
+        ),
+        "usta.reg_no_sections": (
+            "❌ <b>Сейчас нет разделов</b>\n\n"
+            "Попробуйте позже, когда администратор добавит разделы.\n"
+            "/start usta — позже"
+        ),
+        "usta.reg_section_deleted": (
+            "❌ <b>Раздел был удален</b>\n\n"
+            "Администратор удалил раздел во время регистрации.\n"
+            "/start usta — повтор"
+        ),
         "order.fail_order": (
             "Заказ сохранён ✅ (№{oid}). Оператору пока не доставлено — проверьте ADMIN_CHAT_ID и /start у бота.\n\n"
             "Можно попробовать снова — выберите услугу."

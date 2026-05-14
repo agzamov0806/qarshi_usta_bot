@@ -205,18 +205,23 @@ TV_MAISHIY_SUB_SERVICES: tuple[str, ...] = (
 TV_MAISHIY_DETAIL_BY_SUB: dict[str, tuple[str, ...]] = {
     "Televizor diagnostika": (
         "Nima ishlamayotganini topish",
-        "Ekran qorong‘i: ovoz bor, rasm yo‘q",
+        "Ekran qorong’i: ovoz bor, rasm yo’q",
         "Smart ishlamayapti",
         "TV devorga osish",
         "Antenna ulash",
         "Smart sozlash",
     ),
-    "Maishiy texnikalar ta'miri": (
+    "Maishiy texnikalar ta’miri": (
         "Dazmol, elektr choynak va fen",
         "Mikrotulqinli pech (mikrovolnovka)",
         "Kir yuvish mashinasi",
         "Duxovka (220 V / 380 V)",
         "Mikserlar (220 V / 380 V)",
+    ),
+    "Qo’shimcha xizmatlar": (
+        "Maslahat va konsultatsiya",
+        "O’rnatish ishchilari topish",
+        "Boshqa xizmat",
     ),
 }
 
@@ -648,15 +653,17 @@ BTN_ADMIN_DONE = "🏁 Tugatilgan"
 BTN_ADMIN_STATS = "📊 Statistika"
 BTN_ADMIN_SECTIONS = "📂 Bo'limlar"
 BTN_ADMIN_USTAS = "👷 Ustalar"
+BTN_ADMIN_PENDING_USTAS = "⏳ Kutayotgan ustalar"
 
 
 def build_admin_reply_keyboard() -> ReplyKeyboardMarkup:
     """Admin uchun bosh sahifa reply keyboard."""
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_ADMIN_NEW),      KeyboardButton(text=BTN_ADMIN_SECTIONS)],
-            [KeyboardButton(text=BTN_ADMIN_ACCEPTED),  KeyboardButton(text=BTN_ADMIN_STATS)],
-            [KeyboardButton(text=BTN_ADMIN_DONE),      KeyboardButton(text=BTN_ADMIN_USTAS)],
+            [KeyboardButton(text=BTN_ADMIN_NEW),            KeyboardButton(text=BTN_ADMIN_SECTIONS)],
+            [KeyboardButton(text=BTN_ADMIN_ACCEPTED),       KeyboardButton(text=BTN_ADMIN_STATS)],
+            [KeyboardButton(text=BTN_ADMIN_DONE),           KeyboardButton(text=BTN_ADMIN_USTAS)],
+            [KeyboardButton(text=BTN_ADMIN_PENDING_USTAS)],
         ],
         resize_keyboard=True,
         input_field_placeholder="Admin paneli",

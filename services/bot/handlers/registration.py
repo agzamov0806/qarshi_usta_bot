@@ -6,6 +6,9 @@ from aiogram import F
 from aiogram.filters import Command, StateFilter, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     KeyboardButton,
     Message,
     ReplyKeyboardMarkup,
@@ -13,10 +16,12 @@ from aiogram.types import (
 )
 
 from packages.db.repositories import section_ustas as section_ustas_repo
+from packages.db.repositories import sections as sections_repo
 from packages.db.repositories import users as users_repo
 from packages.db.models import SectionUsta
 from packages.db.session import get_session_factory
 from sqlalchemy import select
+from services.bot.callback_data import UstaRegSectionCallback
 from services.bot.filters import ActiveSectionTitleFilter
 from services.bot.i18n import (
     BTN_LANG_RU,
@@ -33,7 +38,7 @@ from services.bot.keyboards import (
     language_reply_keyboard,
 )
 from services.bot.router import router
-from services.bot.states import LanguageStates, RegStates, UstaClaimStates
+from services.bot.states import LanguageStates, RegStates, UstaClaimStates, UstaRegStates
 from shared.config import get_settings
 from shared.phone_norm import format_phone_display
 
@@ -120,19 +125,20 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 
 
 async def _start_usta_claim(message: Message, state: FSMContext) -> None:
-    """Usta /start usta deep link bilan kirdi."""
+    """Usta /start usta deep link bilan kirdi — self-registration oqimi."""
     uid = message.from_user.id if message.from_user else 0
-    # Allaqachon bog'langan bo'lsa — xabar
+    loc = await _locale(uid)
+    # Allaqachon ro'yxatdan o'tgan bo'lsa — xabar
     async with get_session_factory()() as session:
         already = await section_ustas_repo.is_registered_as_usta(session, uid)
     if already:
-        await message.answer(t(LANG_UZ, "usta.claim_already"))
+        await message.answer(t(loc, "usta.claim_already"))
         return
-    await state.set_state(UstaClaimStates.waiting_contact)
+    await state.set_state(UstaRegStates.waiting_first_name)
     await message.answer(
-        t(LANG_UZ, "usta.claim_welcome"),
+        t(loc, "usta.reg_welcome"),
         parse_mode="HTML",
-        reply_markup=_usta_claim_keyboard(),
+        reply_markup=ReplyKeyboardRemove(),
     )
 
 
@@ -321,6 +327,7 @@ async def usta_claim_contact(message: Message, state: FSMContext) -> None:
 
     uid = message.from_user.id
     raw_phone = c.phone_number or ""
+    loc = await _locale(uid)
 
     async with get_session_factory()() as session:
         count = await section_ustas_repo.claim_by_phone(
@@ -332,7 +339,7 @@ async def usta_claim_contact(message: Message, state: FSMContext) -> None:
     await state.clear()
     if count == 0:
         await message.answer(
-            t(LANG_UZ, "usta.claim_not_found"),
+            t(loc, "usta.claim_not_found"),
             reply_markup=ReplyKeyboardRemove(),
         )
         return
@@ -350,15 +357,227 @@ async def usta_claim_contact(message: Message, state: FSMContext) -> None:
     name_esc = escape(full_name or "Usta")
 
     await message.answer(
-        t(LANG_UZ, "usta.claim_ok", name=name_esc),
+        t(loc, "usta.claim_ok", name=name_esc),
         parse_mode="HTML",
         reply_markup=ReplyKeyboardRemove(),
     )
 
 
 @router.message(UstaClaimStates.waiting_contact)
-async def usta_claim_non_contact(message: Message) -> None:
+async def usta_claim_non_contact(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale(uid)
     await message.answer(
-        t(LANG_UZ, "usta.claim_only_contact"),
+        t(loc, "usta.claim_only_contact"),
         reply_markup=_usta_claim_keyboard(),
     )
+
+
+# ---- USTA SELF-REGISTRATION OQIMI ----
+
+@router.message(UstaRegStates.waiting_first_name, F.text)
+async def usta_reg_first_name(message: Message, state: FSMContext) -> None:
+    """Usta ismini kiritdi."""
+    name = (message.text or "").strip()
+    if len(name) < 2:
+        uid = message.from_user.id if message.from_user else 0
+        loc = await _locale(uid)
+        await message.answer(t(loc, "reg.err_name_short"))
+        return
+    if len(name) > 64:
+        uid = message.from_user.id if message.from_user else 0
+        loc = await _locale(uid)
+        await message.answer(t(loc, "reg.err_name_long"))
+        return
+    await state.update_data(usta_first=name)
+    await state.set_state(UstaRegStates.waiting_last_name)
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale(uid)
+    await message.answer(t(loc, "usta.reg_last_name"), parse_mode="HTML")
+
+
+@router.message(UstaRegStates.waiting_first_name)
+async def usta_reg_first_bad(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale(uid)
+    await message.answer(t(loc, "reg.err_text_name"))
+
+
+@router.message(UstaRegStates.waiting_last_name, F.text)
+async def usta_reg_last_name(message: Message, state: FSMContext) -> None:
+    """Usta familiyasini kiritdi."""
+    fam = (message.text or "").strip()
+    if len(fam) < 2:
+        uid = message.from_user.id if message.from_user else 0
+        loc = await _locale(uid)
+        await message.answer(t(loc, "reg.err_fam_short"))
+        return
+    if len(fam) > 64:
+        uid = message.from_user.id if message.from_user else 0
+        loc = await _locale(uid)
+        await message.answer(t(loc, "reg.err_name_long"))
+        return
+    await state.update_data(usta_last=fam)
+    await state.set_state(UstaRegStates.waiting_contact)
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale(uid)
+    await message.answer(
+        t(loc, "usta.reg_contact"),
+        parse_mode="HTML",
+        reply_markup=contact_keyboard(loc),
+    )
+
+
+@router.message(UstaRegStates.waiting_last_name)
+async def usta_reg_last_bad(message: Message, state: FSMContext) -> None:
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale(uid)
+    await message.answer(t(loc, "reg.err_text_fam"))
+
+
+@router.message(UstaRegStates.waiting_contact, F.contact)
+async def usta_reg_contact(message: Message, state: FSMContext) -> None:
+    """Usta kontaktini yubordi."""
+    c = message.contact
+    if not c or not message.from_user:
+        return
+    # Faqat o'z raqamini yuborishi kerak
+    if c.user_id and c.user_id != message.from_user.id:
+        uid = message.from_user.id
+        loc = await _locale(uid)
+        await message.answer(
+            t(loc, "reg.err_contact_self"),
+            reply_markup=contact_keyboard(loc),
+        )
+        return
+
+    await state.update_data(usta_phone=c.phone_number)
+    await state.set_state(UstaRegStates.waiting_section)
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale(uid)
+
+    async with get_session_factory()() as session:
+        all_sections = await sections_repo.list_all(session)
+        sections = [s for s in all_sections if s.get("is_active")]
+
+    if not sections:
+        await message.answer(t(loc, "usta.reg_no_sections"))
+        await state.clear()
+        return
+
+    kb_buttons: list[list[InlineKeyboardButton]] = []
+    for sec in sections:
+        kb_buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=escape(sec.get("title", "?")),
+                    callback_data=UstaRegSectionCallback(section_id=sec.get("id", 0)).pack(),
+                )
+            ]
+        )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
+    await message.answer(
+        t(loc, "usta.reg_section"),
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
+
+
+@router.message(UstaRegStates.waiting_contact)
+async def usta_reg_contact_bad(message: Message, state: FSMContext) -> None:
+    """Usta yozma raqam yubora qoldi - reject va retry counter."""
+    uid = message.from_user.id if message.from_user else 0
+    loc = await _locale(uid)
+
+    # Retry counter
+    data = await state.get_data()
+    contact_retry_count = data.get("contact_retry_count", 0) + 1
+
+    # Log the attempt
+    import logging
+    log = logging.getLogger(__name__)
+    log.warning(
+        "usta_contact_invalid: user=%s attempt=%d text=%r",
+        uid,
+        contact_retry_count,
+        (message.text or "")[:50],
+    )
+
+    # 3 marta urinish, keyin cancel
+    max_retries = 3
+    if contact_retry_count >= max_retries:
+        await state.clear()
+        await message.answer(
+            t(loc, "reg.err_session"),
+            parse_mode="HTML",
+        )
+        return
+
+    # Retry msg with remaining attempts
+    remaining = max_retries - contact_retry_count
+    await state.update_data(contact_retry_count=contact_retry_count)
+
+    error_msg = t(loc, "reg.err_contact_only")
+    if remaining <= 1:
+        error_msg += f"\n\n⚠️ Oxirgi urinish ({remaining}/3)"
+
+    await message.answer(
+        error_msg,
+        reply_markup=contact_keyboard(loc),
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(UstaRegStates.waiting_section, UstaRegSectionCallback.filter())
+async def usta_reg_section(call: CallbackQuery, callback_data: UstaRegSectionCallback, state: FSMContext) -> None:
+    """Usta bo'limni tanladi — arizani saqlayamiz, admin tasdiqlashni kutamiz."""
+    data = await state.get_data()
+    usta_first = data.get("usta_first", "").strip()
+    usta_last = data.get("usta_last", "").strip()
+    usta_phone = data.get("usta_phone", "").strip()
+    uid = call.from_user.id if call.from_user else 0
+    loc = await _locale(uid)
+
+    if not usta_first or not usta_last or not usta_phone:
+        await state.clear()
+        await call.message.answer(t(loc, "reg.err_session"))
+        return
+
+    async with get_session_factory()() as session:
+        # Bo'lim ma'lumotini olish
+        section = await sections_repo.get_by_id(session, callback_data.section_id)
+        if not section:
+            await state.clear()
+            await call.answer(t(loc, "usta.reg_section_deleted"), show_alert=True)
+            return
+
+        # Usta self-register (is_approved=False)
+        usta_row = await section_ustas_repo.self_register_usta(
+            session,
+            telegram_id=uid,
+            first_name=usta_first,
+            last_name=usta_last,
+            phone=usta_phone,
+            section_id=callback_data.section_id,
+        )
+
+    await state.clear()
+
+    # Inline keyboard'ni o'chirish va success xabar
+    await call.message.edit_text(
+        t(loc, "usta.reg_submitted"),
+        parse_mode="HTML",
+        reply_markup=None,
+    )
+
+    # Contact keyboard'ni o'chirish (alohida xabar)
+    await call.message.answer(
+        "✅",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+    # Adminga xabar yuborish
+    from services.bot.handlers.admin import notify_admin_pending_usta
+    await notify_admin_pending_usta(usta_row)
+    await call.answer("✅ Ariza yuborildi")

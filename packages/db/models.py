@@ -49,8 +49,8 @@ class SectionUsta(Base):
 
     __tablename__ = "section_ustas"
     __table_args__ = (
-        # telefon bo'yicha bir bo'limda takror bo'lmasin
-        UniqueConstraint("section_id", "phone", name="uq_section_usta_phone"),
+        # telefon bo'yicha bir bo'limda takror bo'lmasin (normalized format orqali)
+        UniqueConstraint("section_id", "phone_normalized", name="uq_section_usta_phone"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -68,6 +68,9 @@ class SectionUsta(Base):
     # Reyting: barcha baholar yig'indisi va soni
     rating_sum: Mapped[float] = mapped_column(Float, default=0.0)
     rating_count: Mapped[int] = mapped_column(default=0)
+    # O'zi ro'yxatdan o'tgan ustalar admin tasdiqlashi kerak (is_approved=False)
+    # Admin qo'shganlar avtomatik tasdiqlangan (is_approved=True)
+    is_approved: Mapped[bool] = mapped_column(default=True)
 
 
 class Order(Base):

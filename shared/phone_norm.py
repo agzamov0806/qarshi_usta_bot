@@ -9,21 +9,39 @@ def normalize_phone_for_storage(raw: str) -> str:
     """
     Bazada saqlanadigan kalit: faqat raqamlar, mamlakat kodi 998 bilan (masalan 998901234567).
     Telegram contact va admin kiritmasi bir xil kalitga keladi.
+    Natija: 12 raqam, 998 bilan boshlanadi yoki bo'sh string.
     """
     d = digits_only(raw)
     if not d:
         return ""
-    if len(d) == 9 and d[0] == "9":
+
+    # 12 raqam, 998 bilan — already canonical
+    if len(d) == 12 and d.startswith("998"):
+        return d
+
+    # 9 raqam, 9 bilan boshlanadi — add 998
+    if len(d) == 9 and d.startswith("9"):
         d = "998" + d
-    elif len(d) == 10 and d.startswith("9"):
-        d = "998" + d
-    elif len(d) == 11 and d.startswith("89"):
+    # 10 raqam, 8 bilan (old format) — 8 ni 998 ga almashtir
+    elif len(d) == 10 and d.startswith("8"):
         d = "998" + d[1:]
-    elif len(d) == 12 and d.startswith("998"):
-        pass
-    elif len(d) > 12 and d.endswith(""):
-        d = d[-12:] if d[-12:-9] == "998" else d
-    return d
+    # > 12 raqam — oxirgi 12 raqamni olish va 998 bilan tekshirish
+    elif len(d) > 12:
+        candidate = d[-12:]
+        if candidate.startswith("998"):
+            d = candidate
+        elif d.startswith("998"):
+            d = d[:12]
+        else:
+            d = ""
+    else:
+        # Boshqa uzunliklar — noto'g'ri
+        d = ""
+
+    # Final check: faqat 12 raqam, 998 bilan boshlanadi
+    if len(d) == 12 and d.startswith("998"):
+        return d
+    return ""
 
 
 def format_phone_display(stored: str) -> str:

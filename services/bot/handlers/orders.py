@@ -1120,8 +1120,6 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
         )
         return
 
-    await state.clear()
-
     section_id_fsm = data.get("section_id")
     usta_rows: list[dict] = []
 
@@ -1160,6 +1158,8 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
                 session, int(section_id_fsm)
             )
         next_kb = await build_services_keyboard(session, loc)
+
+    await state.clear()
 
     if section_id_fsm and not usta_rows:
         log.info(
@@ -1203,8 +1203,8 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
 
     body_block = (
         f"{user_line}\n"
-        f"Xizmat: {service}\n"
-        f"{detail_label}: {problem}\n"
+        f"Xizmat: {escape(service)}\n"
+        f"{detail_label}: {escape(problem)}\n"
         f"{media_line}"
         f"{addr_line}"
         f"{loc_line}"
@@ -1727,10 +1727,18 @@ async def reject_reason_received(message: Message, state: FSMContext, bot: Bot) 
     reason = message.text.strip()
     actor = message.from_user.id if message.from_user else 0
 
-    # Usta ma'lumotlarini olish
+    # Usta ma'lumotlarini olish va rejection log qilish
     async with get_session_factory()() as session:
         su = await session.get(SectionUsta, suid)
         usta_name = f"{su.first_name} {su.last_name or ''}".strip() if su else f"Usta #{suid}"
+
+    log.info(
+        "Buyurtma #%s usta %s (#%s) tomonidan rad etildi. Sabab: %s",
+        oid,
+        usta_name,
+        suid,
+        reason,
+    )
 
     # Ustaga tasdiqlash
     await message.answer(

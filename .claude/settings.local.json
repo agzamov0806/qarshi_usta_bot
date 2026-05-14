@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m services.bot.main)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue | Select-Object Id, Name, @{Name=\"CPU\"; Expression={$_.CPU}}; Write-Host \"`n✅ Python processlar aktiv\")"
+    ]
+  }
+}

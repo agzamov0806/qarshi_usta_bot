@@ -202,6 +202,10 @@ async def run_sqlite_migrations(engine: AsyncEngine) -> None:
             await conn.execute(
                 text("ALTER TABLE section_ustas ADD COLUMN rating_count INTEGER NOT NULL DEFAULT 0")
             )
+        if "is_approved" not in su_cols2:
+            await conn.execute(
+                text("ALTER TABLE section_ustas ADD COLUMN is_approved BOOLEAN NOT NULL DEFAULT 1")
+            )
 
         # Reyting + usta_id ustunlari (orders)
         r_ord2 = await conn.execute(text("PRAGMA table_info(orders)"))
@@ -374,10 +378,11 @@ async def run_postgres_migrations(engine: AsyncEngine) -> None:
                 """
             )
         )
-        # Reyting ustunlari (section_ustas)
+        # Reyting + is_approved ustunlari (section_ustas)
         for col_def in [
             ("rating_sum", "FLOAT NOT NULL DEFAULT 0.0"),
             ("rating_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("is_approved", "BOOLEAN NOT NULL DEFAULT TRUE"),
         ]:
             await conn.execute(
                 text(

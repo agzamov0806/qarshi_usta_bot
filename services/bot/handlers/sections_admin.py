@@ -12,8 +12,10 @@ from aiogram.types import (
     Message,
 )
 
+from packages.db.models import SectionUsta
 from packages.db.repositories import section_ustas as section_ustas_repo
 from packages.db.repositories import sections as sections_repo
+from packages.db.repositories import users as users_repo
 from packages.db.repositories.sections import (
     KIND_ADMIN_CONTACT,
     KIND_LABELS,
@@ -31,6 +33,7 @@ from services.bot.router import router
 from services.bot.states import SectionAdminStates
 from shared.config import get_settings
 from shared.phone_norm import format_phone_display, normalize_phone_for_storage
+from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 
 settings = get_settings()
@@ -44,6 +47,12 @@ def _is_admin(uid: int | None) -> bool:
 def _usta_suffix(r: dict) -> str:
     n = int(r.get("usta_count") or 0)
     if n > 0:
+        ustas = r.get("ustas", [])
+        if ustas:
+            usta_list = ", ".join(escape(u) for u in ustas[:2])
+            if len(ustas) > 2:
+                usta_list += f", +{len(ustas)-2}"
+            return f" · 👷 {usta_list}"
         return f" · 👷 {n} ta usta"
     return ""
 
@@ -89,27 +98,31 @@ def _sections_root_kb() -> InlineKeyboardMarkup:
 def _usta_row_label(r: dict) -> str:
     name = escape(r["display_name"])
     phone = format_phone_display(r["phone"])
-    if r["claimed"]:
-        return f"✅ {name} {phone}"
-    return f"⌛ {name} {phone}"
+    other = r.get("other_sections_count", 0)
+
+    status = "✅" if r["claimed"] else "⌛"
+    label = f"{status} {name} {phone}"
+    if other > 0:
+        label += f" +📂{other}"
+    return label
 
 
 def _section_ustas_message_html(title: str, sid: int, rows: list[dict], bot_username: str = "") -> str:
-    lines = [f"👷 <b>{escape(title)}</b> (№{sid}) — <b>ustalar</b>\n"]
+    lines = [f"🔧 <b>Bo'lim:</b> {escape(title)} (№{sid})\n"]
+    lines.append(f"<b>Ustalar jami:</b> {len(rows)}\n")
     if not rows:
-        lines.append("Hozircha usta qo'shilmagan. «➕ Usta qo'shish».")
+        lines.append("➕ Hozircha usta qo'shilmagan.")
     else:
-        for r in rows:
+        for i, r in enumerate(rows, 1):
             name = escape(r["display_name"])
             phone = format_phone_display(r["phone"])
-            status = "✅ bog'langan" if r["claimed"] else "⌛ kutilmoqda"
-            lines.append(f"· <b>{name}</b> — {phone} — {status}")
+            status = "✅" if r["claimed"] else "⌛"
+            lines.append(f"{i}. {status} <b>{name}</b>\n   {phone}")
     if bot_username:
         link = f"https://t.me/{bot_username}?start=usta"
-        lines.append(f"\n📲 Usta uchun havola: {link}")
+        lines.append(f"\n📲 Yangi usta: {link}")
     lines.append(
-        "\n<i>⌛ — usta hali botda /start bilan bog'lanmagan.\n"
-        "✅ — usta bog'langan, buyurtma keladi.</i>"
+        "\n<i>⌛ — botda bog'lanmagan | ✅ — faol</i>"
     )
     return "\n".join(lines)
 
@@ -118,11 +131,17 @@ def _section_ustas_kb(sid: int, rows: list[dict]) -> InlineKeyboardMarkup:
     btns: list[list[InlineKeyboardButton]] = []
     for r in rows:
         label = _usta_row_label(r)
-        short = label[:28] + ("…" if len(label) > 28 else "")
+        short = label[:20] + ("…" if len(label) > 20 else "")
         btns.append(
             [
                 InlineKeyboardButton(
-                    text=f"🗑 {short}",
+                    text=f"👤 {short}",
+                    callback_data=SectionUstaCallback(
+                        action="view", sid=sid, uid=int(r["id"])
+                    ).pack(),
+                ),
+                InlineKeyboardButton(
+                    text="🗑",
                     callback_data=SectionUstaCallback(
                         action="del", sid=sid, uid=int(r["id"])
                     ).pack(),
@@ -238,20 +257,20 @@ async def cb_section_add(call: CallbackQuery, state: FSMContext) -> None:
 async def msg_section_new_title(message: Message, state: FSMContext) -> None:
     if not _is_admin(message.from_user.id if message.from_user else None):
         return
-    t = (message.text or "").strip()
-    if len(t) < 1 or len(t) > 64:
+    new_title = (message.text or "").strip()
+    if len(new_title) < 1 or len(new_title) > 64:
         await message.answer("1–64 belgi orasida yozing.")
         return
     async with get_session_factory()() as session:
         try:
-            await sections_repo.create_section(session, title=t, kind=KIND_STANDARD)
+            await sections_repo.create_section(session, title=new_title, kind=KIND_STANDARD)
         except IntegrityError:
             await session.rollback()
             await message.answer("Bu nom allaqachon bor. Boshqa nom tanlang.")
             return
     await state.clear()
     await message.answer(
-        f"✅ Qo'shildi: <b>{t}</b>",
+        f"✅ Qo'shildi: <b>{new_title}</b>",
         parse_mode="HTML",
     )
     async with get_session_factory()() as session:
@@ -283,13 +302,13 @@ async def msg_section_edit_title(message: Message, state: FSMContext) -> None:
     if not sid:
         await state.clear()
         return
-    t = (message.text or "").strip()
-    if len(t) < 1 or len(t) > 64:
+    new_title = (message.text or "").strip()
+    if len(new_title) < 1 or len(new_title) > 64:
         await message.answer("1–64 belgi orasida yozing.")
         return
     async with get_session_factory()() as session:
         try:
-            ok = await sections_repo.update_section(session, sid, title=t)
+            ok = await sections_repo.update_section(session, sid, title=new_title)
         except IntegrityError:
             await session.rollback()
             await message.answer("Bu nom band. Boshqa nom tanlang.")
@@ -418,15 +437,20 @@ async def msg_usta_phone(message: Message, state: FSMContext) -> None:
         await message.answer("Telefon juda qisqa yoki juda uzun (9+ raqam).")
         return
     pn = normalize_phone_for_storage(phone_raw)
+    if not pn:
+        await message.answer("Telefon raqami noto'g'ri. Iltimos, 12 raqamli O'zbekiston raqamini kiriting.")
+        return
+    usta_id = None
     async with get_session_factory()() as session:
         try:
-            await section_ustas_repo.add_pending_usta(
+            u, auto_linked = await section_ustas_repo.add_pending_usta(
                 session,
                 section_id=int(sid),
                 first_name=first,
                 last_name=last,
-                phone=phone_raw,
+                phone=pn,
             )
+            usta_id = u.id
         except IntegrityError:
             await session.rollback()
             await message.answer(
@@ -434,18 +458,51 @@ async def msg_usta_phone(message: Message, state: FSMContext) -> None:
             )
             return
     await state.clear()
+
+    # Yangi: Agar foydalanuvchi allaqachon ro'yxatdan o'tgan bo'lsa, telegram_id ni yangilashini tekshir
+    user_row = None
     bot_username = (await message.bot.get_me()).username or ""
-    link = f"https://t.me/{bot_username}?start=usta" if bot_username else ""
-    await message.answer(
-        f"✅ Usta qo'shildi: <b>{escape(first)} {escape(last)}</b> — "
-        f"{format_phone_display(phone_raw)}\n\n"
-        f"⌛ Usta hali bog'lanmagan.\n"
-        + (f"📲 Shu havolani ustaga yuboring:\n{link}" if link else ""),
-        parse_mode="HTML",
-    )
     async with get_session_factory()() as session:
+        user_row = await users_repo.find_by_phone(session, phone_raw)
         s = await sections_repo.get_by_id(session, int(sid))
         title = s.title if s else "?"
+
+        # Agar user topilsa va auto-link bo'lmasa, usta_row'ni telegram_id bilan yangilash
+        if user_row and user_row.telegram_id and not auto_linked and usta_id:
+            stmt = (
+                sql_update(SectionUsta)
+                .where(SectionUsta.id == usta_id)
+                .values(telegram_id=user_row.telegram_id)
+            )
+            await session.execute(stmt)
+            await session.commit()
+            auto_linked = True  # Yangilangan!
+
+    # Admin'ga success xabar
+    await message.answer(
+        f"✅ Usta qo'shildi: <b>{escape(first)} {escape(last)}</b> — {format_phone_display(phone_raw)}\n"
+        + (f"\n✅ <b>Darhol faol!</b>" if auto_linked else ""),
+        parse_mode="HTML",
+    )
+
+    # Agar auto_linked bo'lsa va user topilsa, ustaga notification
+    if auto_linked and user_row and user_row.telegram_id:
+        from services.bot.i18n import t, LANG_UZ
+        section_title_esc = escape(title)
+        user_lang = user_row.locale or LANG_UZ
+        try:
+            await message.bot.send_message(
+                chat_id=user_row.telegram_id,
+                text=t(user_lang, "usta.added_by_admin", section=section_title_esc),
+                parse_mode="HTML",
+            )
+            user_found_notification_sent = True
+        except Exception as exc:
+            import logging
+            log = logging.getLogger(__name__)
+            log.error("msg_usta_phone: add_by_admin notification: %s", exc)
+
+    async with get_session_factory()() as session:
         rows = await section_ustas_repo.list_for_section(session, int(sid))
     await message.answer(
         _section_ustas_message_html(title, int(sid), rows, bot_username),

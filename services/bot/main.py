@@ -31,6 +31,10 @@ async def run_bot() -> None:
     bot = Bot(token=settings.bot_token)
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
+
+    # Startup: Pending ustalarga admin xabar
+    await _notify_pending_ustas_on_startup(bot, settings)
+
     log.info("Bot polling boshlandi")
     try:
         await dp.start_polling(
@@ -40,6 +44,36 @@ async def run_bot() -> None:
     finally:
         await bot.session.close()
         await close_engine()
+
+
+async def _notify_pending_ustas_on_startup(bot: Bot, settings) -> None:
+    """Bot startup paytida pending ustalarga admin xabar."""
+    try:
+        from packages.db.session import get_session
+        from packages.db.repositories import section_ustas as su_repo
+
+        async for session in get_session():
+            pending = await su_repo.list_pending_approval(session)
+            if not pending:
+                return
+
+            # Pending ustalari ro'yxati
+            lines = ["⏳ <b>BOT QAYTA ISHGA TUSHDI</b>\n"]
+            lines.append(f"Pending ariza: {len(pending)}\n")
+            for i, u in enumerate(pending, 1):
+                name = u.get("display_name", "?")
+                lines.append(f"{i}. {name}")
+
+            text = "\n".join(lines)
+            await bot.send_message(
+                chat_id=settings.admin_chat_id,
+                text=text,
+                parse_mode="HTML",
+            )
+            log.info("startup_notification: pending_count=%d", len(pending))
+            break
+    except Exception as exc:
+        log.error("startup_notification_failed: %s", exc)
 
 
 def main() -> None:

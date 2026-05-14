@@ -70,10 +70,27 @@ async def list_all(session: AsyncSession) -> list[dict]:
         .group_by(SectionUsta.section_id)
     )
     usta_counts = {int(r[0]): int(r[1]) for r in cq.all()}
+
+    # Get usta names for each section (approved only)
+    uq = await session.execute(
+        select(SectionUsta.section_id, SectionUsta.first_name, SectionUsta.last_name)
+        .where(SectionUsta.section_id.in_(ids))
+        .where(SectionUsta.is_approved == True)
+        .order_by(SectionUsta.first_name)
+    )
+    usta_names: dict[int, list[str]] = {}
+    for row in uq.all():
+        sid = int(row[0])
+        name = f"{row[1]} {row[2]}".strip()
+        if sid not in usta_names:
+            usta_names[sid] = []
+        usta_names[sid].append(name)
+
     out: list[dict] = []
     for x in secs:
         d = section_to_dict(x)
         d["usta_count"] = usta_counts.get(int(x.id), 0)
+        d["ustas"] = usta_names.get(int(x.id), [])
         out.append(d)
     return out
 

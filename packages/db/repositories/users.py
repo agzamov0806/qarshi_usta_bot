@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from packages.db.models import User
@@ -99,3 +100,11 @@ async def set_locale(session: AsyncSession, telegram_id: int, locale: str) -> No
     u.locale = loc
     await session.commit()
     _bump_locale_memo(telegram_id, loc)
+
+
+async def find_by_phone(session: AsyncSession, phone: str) -> User | None:
+    """Foydalanuvchini telefon raqami bo'yicha topish."""
+    q = await session.execute(
+        select(User).where(User.phone == phone.strip()).limit(1)
+    )
+    return q.scalar_one_or_none()

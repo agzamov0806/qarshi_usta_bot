@@ -222,14 +222,22 @@ async def set_order_rating(
     client_tg_id: int,
     rating: int,
 ) -> tuple[bool, dict | None]:
-    """Mijoz buyurtmani baholaydi. Faqat bir marta baholanadi."""
-    order = await session.get(Order, order_id)
-    if not order:
-        return (False, None)
-    if int(order.client_tg_id) != int(client_tg_id):
-        return (False, None)
-    if order.rating is not None:
-        return (False, order_to_dict(order))
-    order.rating = rating
+    """Mijoz buyurtmani baholaydi. Faqat bir marta baholanadi (atomic UPDATE)."""
+    stmt = (
+        update(Order)
+        .where(
+            Order.id == order_id,
+            Order.client_tg_id == client_tg_id,
+            Order.rating.is_(None),
+        )
+        .values(rating=rating)
+    )
+    result = await session.execute(stmt)
     await session.commit()
-    return (True, order_to_dict(order))
+
+    if result.rowcount == 0:
+        order = await session.get(Order, order_id)
+        return (False, order_to_dict(order) if order else None)
+
+    order = await session.get(Order, order_id)
+    return (True, order_to_dict(order) if order else None)

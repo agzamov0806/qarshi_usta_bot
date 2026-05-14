@@ -1,13 +1,14 @@
-"""Bitta chat bo‘yicha update-larni ketma-ket ishlatish va loglar.
+"""Bitta chat bo’yicha update-larni ketma-ket ishlatish va loglar.
 
 Sabab: handle_as_tasks=True paytida bir foydalanuvchidan tez ket-ket bosilgan
 tugmalar turli asyncio vazifalarida bir vaqtda ishlaydi. Handler ichida
-await (masalan DB) bo‘lguncha keyingi update allaqachon FSM ning eski holatida
+await (masalan DB) bo’lguncha keyingi update allaqachon FSM ning eski holatida
 ishga tushishi va bir xabar bir necha marta qayta ishlashi mumkin."""
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -37,11 +38,7 @@ class ChatSerialMiddleware(BaseMiddleware):
         self._locks: dict[int, asyncio.Lock] = {}
 
     def _lock(self, key: int) -> asyncio.Lock:
-        lock = self._locks.get(key)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._locks[key] = lock
-        return lock
+        return self._locks.setdefault(key, asyncio.Lock())
 
     async def __call__(
         self,
@@ -87,3 +84,48 @@ class ChatSerialMiddleware(BaseMiddleware):
             result = await handler(event, data)
             log.debug("handled update_id=%s chat_or_user=%s", update_id, key)
             return result
+
+
+class RateLimitMiddleware(BaseMiddleware):
+    """Har bir foydalanuvchiga rate limit qo'yish — spam oldini olish."""
+
+    __slots__ = ("_user_timestamps",)
+    # max_messages per second per user
+    MAX_MESSAGES_PER_SEC = 5
+
+    def __init__(self) -> None:
+        self._user_timestamps: dict[int, list[float]] = {}
+
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        key = _serial_key(event)
+        if key is None:
+            return await handler(event, data)
+
+        now = time.time()
+        if key not in self._user_timestamps:
+            self._user_timestamps[key] = []
+
+        # Keep only timestamps from last second
+        self._user_timestamps[key] = [
+            ts for ts in self._user_timestamps[key] if now - ts < 1.0
+        ]
+
+        # Check rate limit
+        if len(self._user_timestamps[key]) >= self.MAX_MESSAGES_PER_SEC:
+            log.warning(
+                "rate_limit exceeded for user=%s messages_in_1s=%d",
+                key,
+                len(self._user_timestamps[key]),
+            )
+            # Skip this update silently to prevent spam loops
+            return None
+
+        # Record this message
+        self._user_timestamps[key].append(now)
+
+        return await handler(event, data)

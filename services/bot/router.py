@@ -2,10 +2,14 @@
 
 from aiogram import Router
 
-from services.bot.update_middleware import ChatSerialMiddleware
+from services.bot.update_middleware import ChatSerialMiddleware, RateLimitMiddleware
 
 router = Router()
 
-_mw = ChatSerialMiddleware()
-router.message.outer_middleware(_mw)
-router.callback_query.outer_middleware(_mw)
+_mw_serial = ChatSerialMiddleware()
+_mw_rate = RateLimitMiddleware()
+
+router.message.outer_middleware(_mw_rate)
+router.message.outer_middleware(_mw_serial)
+router.callback_query.outer_middleware(_mw_rate)
+router.callback_query.outer_middleware(_mw_serial)
