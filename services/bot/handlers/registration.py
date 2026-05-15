@@ -119,15 +119,27 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 
 async def _start_usta_claim(message: Message, state: FSMContext) -> None:
     """Usta /start usta deep link bilan kirdi — telefon share qilish."""
+    import logging
+    log = logging.getLogger(__name__)
+
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale(uid)
+    log.info("_start_usta_claim: user_id=%s", uid)
+
     # Allaqachon ro'yxatdan o'tgan bo'lsa — xabar
     async with get_session_factory()() as session:
         already = await section_ustas_repo.is_registered_as_usta(session, uid)
+
     if already:
+        log.info("_start_usta_claim: user %s already registered as usta", uid)
         await message.answer(t(loc, "usta.claim_already"))
         return
+
+    # State o'rnatish
     await state.set_state(UstaClaimStates.waiting_contact)
+    current_state = await state.get_state()
+    log.info("_start_usta_claim: state set for user %s, current_state=%s", uid, current_state)
+
     await message.answer(
         t(loc, "usta.claim_welcome"),
         parse_mode="HTML",
@@ -307,8 +319,16 @@ async def reg_phone_hint(message: Message, state: FSMContext) -> None:
 @router.message(UstaClaimStates.waiting_contact, F.contact)
 async def usta_claim_contact(message: Message, state: FSMContext) -> None:
     """Usta o'z kontaktini yubordi — telefonni normalizatsiya qilib DB bilan bog'laymiz."""
+    import logging
+    log = logging.getLogger(__name__)
+
+    uid = message.from_user.id if message.from_user else 0
+    current_state = await state.get_state()
+    log.info("usta_claim_contact: user_id=%s state=%s contact=%s", uid, current_state, message.contact)
+
     c = message.contact
     if not c or not message.from_user:
+        log.warning("usta_claim_contact: invalid contact or user")
         return
     # Faqat o'z raqamini yuborishi kerak
     if c.user_id and c.user_id != message.from_user.id:
