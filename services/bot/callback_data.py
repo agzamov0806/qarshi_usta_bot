@@ -30,10 +30,3 @@ class SectionUstaCallback(CallbackData, prefix="sut"):
     uid: int = 0  # section_ustas.id — del
 
 
-class UstaApprovalCallback(CallbackData, prefix="uap"):
-    action: str  # approve, reject
-    usta_id: int
-
-
-class UstaRegSectionCallback(CallbackData, prefix="urs"):
-    section_id: int

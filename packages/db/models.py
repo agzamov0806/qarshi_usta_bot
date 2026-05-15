@@ -68,9 +68,6 @@ class SectionUsta(Base):
     # Reyting: barcha baholar yig'indisi va soni
     rating_sum: Mapped[float] = mapped_column(Float, default=0.0)
     rating_count: Mapped[int] = mapped_column(default=0)
-    # O'zi ro'yxatdan o'tgan ustalar admin tasdiqlashi kerak (is_approved=False)
-    # Admin qo'shganlar avtomatik tasdiqlangan (is_approved=True)
-    is_approved: Mapped[bool] = mapped_column(default=True)
 
 
 class Order(Base):

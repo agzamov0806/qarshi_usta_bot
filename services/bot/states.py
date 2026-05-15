@@ -39,13 +39,6 @@ class UstaClaimStates(StatesGroup):
     waiting_contact = State()
 
 
-class UstaRegStates(StatesGroup):
-    """Usta o'zi ro'yxatdan o'tadi: ism → familiya → telefon → bo'lim → admin tasdiqlashni kutadi."""
-    waiting_first_name = State()
-    waiting_last_name = State()
-    waiting_contact = State()
-    waiting_section = State()
-
 
 class UstaRejectStates(StatesGroup):
     """Usta buyurtmani rad etganda sabab kiritadi."""

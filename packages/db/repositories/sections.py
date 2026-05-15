@@ -71,11 +71,10 @@ async def list_all(session: AsyncSession) -> list[dict]:
     )
     usta_counts = {int(r[0]): int(r[1]) for r in cq.all()}
 
-    # Get usta names for each section (approved only)
+    # Get usta names for each section
     uq = await session.execute(
         select(SectionUsta.section_id, SectionUsta.first_name, SectionUsta.last_name)
         .where(SectionUsta.section_id.in_(ids))
-        .where(SectionUsta.is_approved == True)
         .order_by(SectionUsta.first_name)
     )
     usta_names: dict[int, list[str]] = {}

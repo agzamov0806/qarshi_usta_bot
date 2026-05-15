@@ -21,7 +21,6 @@ def usta_to_dict(u: SectionUsta) -> dict:
         "phone": u.phone,
         "phone_normalized": u.phone_normalized,
         "claimed": u.telegram_id is not None,
-        "is_approved": bool(u.is_approved),
         "rating_sum": float(u.rating_sum or 0),
         "rating_count": int(u.rating_count or 0),
         "avg_rating": round(avg, 2) if avg is not None else None,
@@ -61,7 +60,7 @@ async def list_for_section(session: AsyncSession, section_id: int) -> list[dict]
 
 
 async def list_claimed_for_section(session: AsyncSession, section_id: int) -> list[dict]:
-    """Faqat telegram_id bog'langan va admin tasdiqlagan ustalar (buyurtma xabari uchun). Reytingi yuqori usta birinchi."""
+    """Faqat telegram_id bog'langan ustalar (buyurtma xabari uchun). Reytingi yuqori usta birinchi."""
     # avg_rating = rating_sum / rating_count; rating_count=0 bo'lsa NULL — oxirga ketadi
     avg_expr = case(
         (SectionUsta.rating_count > 0, SectionUsta.rating_sum / SectionUsta.rating_count),
@@ -72,7 +71,6 @@ async def list_claimed_for_section(session: AsyncSession, section_id: int) -> li
         .where(
             SectionUsta.section_id == section_id,
             SectionUsta.telegram_id.is_not(None),
-            SectionUsta.is_approved == True,
         )
         .order_by(avg_expr.desc().nulls_last(), SectionUsta.id.asc())
     )
@@ -202,75 +200,3 @@ async def add_rating(session: AsyncSession, *, usta_id: int, rating: int) -> boo
     return res.rowcount > 0
 
 
-async def self_register_usta(
-    session: AsyncSession,
-    *,
-    telegram_id: int,
-    first_name: str,
-    last_name: str,
-    phone: str,
-    section_id: int,
-) -> SectionUsta:
-    """Usta o'zi ro'yxatdan o'tadi — is_approved=False (pending admin tasdiqlashi)."""
-    import logging
-    log = logging.getLogger(__name__)
-
-    pn = normalize_phone_for_storage(phone)
-    u = SectionUsta(
-        section_id=section_id,
-        telegram_id=telegram_id,
-        first_name=first_name.strip(),
-        last_name=last_name.strip(),
-        phone=phone.strip(),
-        phone_normalized=pn,
-        is_approved=False,
-    )
-    session.add(u)
-    await session.flush()  # Generate ID
-    await session.commit()
-    log.info("self_register_usta: yangi usta qo'shildi - id=%s name=%s section_id=%s", u.id, f"{u.first_name} {u.last_name}", section_id)
-    return u
-
-
-async def approve_usta(session: AsyncSession, usta_id: int) -> bool:
-    """Pending ustani admin tasdiqlaydi — is_approved=True."""
-    import logging
-    log = logging.getLogger(__name__)
-
-    stmt = (
-        update(SectionUsta)
-        .where(SectionUsta.id == usta_id)
-        .values(is_approved=True)
-    )
-    res = await session.execute(stmt)
-    await session.commit()
-
-    success = res.rowcount > 0
-    if not success:
-        log.warning("approve_usta: usta topilmadi yoki update muvaffaqiyatsiz - usta_id=%s", usta_id)
-    return success
-
-
-async def reject_usta(session: AsyncSession, usta_id: int) -> bool:
-    """Pending ustani admin rad etadi — row o'chiriladi."""
-    import logging
-    log = logging.getLogger(__name__)
-
-    u = await session.get(SectionUsta, usta_id)
-    if not u:
-        log.warning("reject_usta: usta topilmadi - usta_id=%s", usta_id)
-        return False
-    session.delete(u)
-    await session.commit()
-    log.info("reject_usta: usta o'chirildi - usta_id=%s", usta_id)
-    return True
-
-
-async def list_pending_approval(session: AsyncSession) -> list[dict]:
-    """O'zi ro'yxatdan o'tgan, admin tasdiqlashni kutayotgan ustalar (is_approved=False)."""
-    q = await session.execute(
-        select(SectionUsta)
-        .where(SectionUsta.is_approved == False)
-        .order_by(SectionUsta.id.desc())
-    )
-    return [usta_to_dict(x) for x in q.scalars().all()]

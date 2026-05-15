@@ -653,9 +653,6 @@ BTN_ADMIN_DONE = "🏁 Tugatilgan"
 BTN_ADMIN_STATS = "📊 Statistika"
 BTN_ADMIN_SECTIONS = "📂 Bo'limlar"
 BTN_ADMIN_USTAS = "👷 Ustalar"
-BTN_ADMIN_PENDING_USTAS = "⏳ Kutayotgan ustalar"
-
-
 def build_admin_reply_keyboard() -> ReplyKeyboardMarkup:
     """Admin uchun bosh sahifa reply keyboard."""
     return ReplyKeyboardMarkup(
@@ -663,7 +660,6 @@ def build_admin_reply_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=BTN_ADMIN_NEW),            KeyboardButton(text=BTN_ADMIN_SECTIONS)],
             [KeyboardButton(text=BTN_ADMIN_ACCEPTED),       KeyboardButton(text=BTN_ADMIN_STATS)],
             [KeyboardButton(text=BTN_ADMIN_DONE),           KeyboardButton(text=BTN_ADMIN_USTAS)],
-            [KeyboardButton(text=BTN_ADMIN_PENDING_USTAS)],
         ],
         resize_keyboard=True,
         input_field_placeholder="Admin paneli",
