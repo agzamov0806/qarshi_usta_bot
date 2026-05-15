@@ -212,6 +212,9 @@ async def self_register_usta(
     section_id: int,
 ) -> SectionUsta:
     """Usta o'zi ro'yxatdan o'tadi — is_approved=False (pending admin tasdiqlashi)."""
+    import logging
+    log = logging.getLogger(__name__)
+
     pn = normalize_phone_for_storage(phone)
     u = SectionUsta(
         section_id=section_id,
@@ -223,13 +226,17 @@ async def self_register_usta(
         is_approved=False,
     )
     session.add(u)
+    await session.flush()  # Generate ID
     await session.commit()
-    await session.refresh(u)
+    log.info("self_register_usta: yangi usta qo'shildi - id=%s name=%s section_id=%s", u.id, f"{u.first_name} {u.last_name}", section_id)
     return u
 
 
 async def approve_usta(session: AsyncSession, usta_id: int) -> bool:
     """Pending ustani admin tasdiqlaydi — is_approved=True."""
+    import logging
+    log = logging.getLogger(__name__)
+
     stmt = (
         update(SectionUsta)
         .where(SectionUsta.id == usta_id)
@@ -237,16 +244,25 @@ async def approve_usta(session: AsyncSession, usta_id: int) -> bool:
     )
     res = await session.execute(stmt)
     await session.commit()
-    return res.rowcount > 0
+
+    success = res.rowcount > 0
+    if not success:
+        log.warning("approve_usta: usta topilmadi yoki update muvaffaqiyatsiz - usta_id=%s", usta_id)
+    return success
 
 
 async def reject_usta(session: AsyncSession, usta_id: int) -> bool:
     """Pending ustani admin rad etadi — row o'chiriladi."""
+    import logging
+    log = logging.getLogger(__name__)
+
     u = await session.get(SectionUsta, usta_id)
     if not u:
+        log.warning("reject_usta: usta topilmadi - usta_id=%s", usta_id)
         return False
-    await session.delete(u)
+    session.delete(u)
     await session.commit()
+    log.info("reject_usta: usta o'chirildi - usta_id=%s", usta_id)
     return True
 
 

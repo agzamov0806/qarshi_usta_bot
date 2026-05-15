@@ -687,6 +687,9 @@ async def cb_usta_approve(call: CallbackQuery, callback_data: UstaApprovalCallba
             usta_row = None
 
     if not ok:
+        import logging
+        log = logging.getLogger(__name__)
+        log.error("cb_usta_approve: approve_usta failed - usta_id=%s", callback_data.usta_id)
         await call.answer("Arizani topib bo'lmasdik yoki allaqachon qayta işlangan", show_alert=True)
         return
 
@@ -732,6 +735,7 @@ async def cb_usta_reject(call: CallbackQuery, callback_data: UstaApprovalCallbac
         ok = await section_ustas_repo.reject_usta(session, callback_data.usta_id)
 
     if not ok:
+        log.error("cb_usta_reject: reject_usta failed - usta_id=%s", callback_data.usta_id)
         await call.answer("Arizani topib bo'lmasdik", show_alert=True)
         return
 
