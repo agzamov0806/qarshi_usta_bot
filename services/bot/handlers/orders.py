@@ -316,6 +316,107 @@ async def _go_to_location_after_problem(
     )
 
 
+async def _finalize_suggestion(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+    *,
+    problem: str,
+    media_items: list[dict],
+    loc: str,
+) -> None:
+    """Taklif/murojaat: lokatsiya yo'q, darhol yuborish."""
+    data = await state.get_data()
+    uid = message.from_user.id if message.from_user else 0
+    service = data.get("service") or ""
+    section_db_id = data.get("section_id")
+    section_kind = data.get("section_kind")
+
+    async with get_session_factory()() as session:
+        user_row = await users_repo.get_by_telegram_id(session, uid)
+        order_result = await orders_repo.create_order(
+            session,
+            client_tg_id=uid,
+            service=service,
+            problem=problem.strip(),
+            section_db_id=section_db_id,
+            is_suggestion=True,
+        )
+        order_id = order_result.id
+        await session.commit()
+
+    await state.clear()
+
+    order_data = {
+        "id": order_id,
+        "client_name": user_row.get("full_name") if user_row else None,
+        "client_tg_id": uid,
+        "username": message.from_user.username if message.from_user else None,
+        "phone": user_row.get("phone_normalized") if user_row else None,
+        "service": service,
+        "section_kind": section_kind,
+        "status": "yangi",
+        "created_at": order_result.created_at,
+        "problem": problem.strip(),
+        "lat": None,
+        "lon": None,
+        "problem_media_json": json.dumps(media_items) if media_items else None,
+        "service_address_note": None,
+    }
+
+    from services.bot.formatters import format_order_detail
+
+    admin_detail = format_order_detail(order_data)
+
+    notify_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"📋 #{order_id} batafsil (panel)",
+                    callback_data=OrderCallback(
+                        action="view", order_id=order_id
+                    ).pack(),
+                )
+            ]
+        ]
+    )
+
+    await message.answer(
+        t(loc, "order.ok_suggestion"),
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+    asyncio.create_task(
+        _send_admin_order_notice(
+            bot,
+            admin_chat_id=ADMIN_ID,
+            text=admin_detail,
+            reply_markup=notify_kb,
+            order_id=order_id,
+            media_items=media_items,
+        )
+    )
+
+
+async def _continue_after_problem_or_media(
+    message: Message,
+    state: FSMContext,
+    bot: Bot,
+    *,
+    problem: str,
+    media_items: list[dict],
+    loc: str,
+) -> None:
+    """Muammoni qabul qilgandan so'ng: KIND_SUGGESTION bo'lsa darhol yuborish, aks holda lokatsiya so'rash."""
+    data = await state.get_data()
+    section_kind = data.get("section_kind")
+
+    if section_kind == KIND_SUGGESTION:
+        await _finalize_suggestion(message, state, bot, problem=problem, media_items=media_items, loc=loc)
+    else:
+        await _go_to_location_after_problem(message, state, problem=problem, media_items=media_items, loc=loc)
+
+
 async def _append_optional_media_item(
     state: FSMContext, *, media_type: str, file_id: str
 ) -> None:
@@ -621,6 +722,29 @@ async def service_chosen(message: Message, state: FSMContext) -> None:
         )
         return
 
+    if kind == KIND_SUGGESTION:
+        await state.update_data(
+            service=title,
+            section_kind=kind,
+            section_id=section_db_id,
+            problem_media=[],
+        )
+        await state.set_state(OrderStates.waiting_problem)
+        prompt_key = "order.problem_prompt_suggestion"
+        if prompt_key in _MSG.get(loc, {}):
+            await message.answer(
+                t(loc, prompt_key),
+                parse_mode="HTML",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+        else:
+            await message.answer(
+                f"Taklifingizni yozing:\n\n(Rasm yoki video qo'shishingiz mumkin)",
+                parse_mode="HTML",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+        return
+
     await state.update_data(
         service=title, section_kind=kind, section_id=section_db_id
     )
@@ -916,7 +1040,7 @@ async def optional_media_fallback_any(message: Message) -> None:
 
 
 @router.message(StateFilter(OrderStates.waiting_problem), F.photo)
-async def problem_photo(message: Message, state: FSMContext) -> None:
+async def problem_photo(message: Message, state: FSMContext, bot: Bot) -> None:
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale_for_user(uid)
     if not message.photo:
@@ -924,9 +1048,10 @@ async def problem_photo(message: Message, state: FSMContext) -> None:
     fid = message.photo[-1].file_id
     cap = (message.caption or "").strip()
     problem = cap if cap else t(loc, "order.problem_placeholder_photo")
-    await _go_to_location_after_problem(
+    await _continue_after_problem_or_media(
         message,
         state,
+        bot,
         problem=problem,
         media_items=[{"type": "photo", "file_id": fid}],
         loc=loc,
@@ -934,7 +1059,7 @@ async def problem_photo(message: Message, state: FSMContext) -> None:
 
 
 @router.message(StateFilter(OrderStates.waiting_problem), F.video)
-async def problem_video(message: Message, state: FSMContext) -> None:
+async def problem_video(message: Message, state: FSMContext, bot: Bot) -> None:
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale_for_user(uid)
     if not message.video:
@@ -942,9 +1067,10 @@ async def problem_video(message: Message, state: FSMContext) -> None:
     fid = message.video.file_id
     cap = (message.caption or "").strip()
     problem = cap if cap else t(loc, "order.problem_placeholder_video")
-    await _go_to_location_after_problem(
+    await _continue_after_problem_or_media(
         message,
         state,
+        bot,
         problem=problem,
         media_items=[{"type": "video", "file_id": fid}],
         loc=loc,
@@ -952,7 +1078,7 @@ async def problem_video(message: Message, state: FSMContext) -> None:
 
 
 @router.message(StateFilter(OrderStates.waiting_problem), F.animation)
-async def problem_animation(message: Message, state: FSMContext) -> None:
+async def problem_animation(message: Message, state: FSMContext, bot: Bot) -> None:
     """GIF / gif animatsiya."""
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale_for_user(uid)
@@ -961,9 +1087,10 @@ async def problem_animation(message: Message, state: FSMContext) -> None:
     fid = message.animation.file_id
     cap = (message.caption or "").strip()
     problem = cap if cap else t(loc, "order.problem_placeholder_video")
-    await _go_to_location_after_problem(
+    await _continue_after_problem_or_media(
         message,
         state,
+        bot,
         problem=problem,
         media_items=[{"type": "animation", "file_id": fid}],
         loc=loc,
@@ -971,15 +1098,16 @@ async def problem_animation(message: Message, state: FSMContext) -> None:
 
 
 @router.message(StateFilter(OrderStates.waiting_problem), F.video_note)
-async def problem_video_note(message: Message, state: FSMContext) -> None:
+async def problem_video_note(message: Message, state: FSMContext, bot: Bot) -> None:
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale_for_user(uid)
     if not message.video_note:
         return
     fid = message.video_note.file_id
-    await _go_to_location_after_problem(
+    await _continue_after_problem_or_media(
         message,
         state,
+        bot,
         problem=t(loc, "order.problem_placeholder_video"),
         media_items=[{"type": "video_note", "file_id": fid}],
         loc=loc,
@@ -987,7 +1115,7 @@ async def problem_video_note(message: Message, state: FSMContext) -> None:
 
 
 @router.message(StateFilter(OrderStates.waiting_problem), F.document)
-async def problem_document_media(message: Message, state: FSMContext) -> None:
+async def problem_document_media(message: Message, state: FSMContext, bot: Bot) -> None:
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale_for_user(uid)
     doc = message.document
@@ -1004,9 +1132,10 @@ async def problem_document_media(message: Message, state: FSMContext) -> None:
         problem = cap if cap else t(loc, "order.problem_placeholder_photo")
     else:
         problem = cap if cap else t(loc, "order.problem_placeholder_video")
-    await _go_to_location_after_problem(
+    await _continue_after_problem_or_media(
         message,
         state,
+        bot,
         problem=problem,
         media_items=[{"type": "document", "file_id": fid}],
         loc=loc,
@@ -1014,16 +1143,29 @@ async def problem_document_media(message: Message, state: FSMContext) -> None:
 
 
 @router.message(StateFilter(OrderStates.waiting_problem), F.content_type == ContentType.TEXT)
-async def problem_received(message: Message, state: FSMContext) -> None:
+async def problem_received(message: Message, state: FSMContext, bot: Bot) -> None:
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale_for_user(uid)
-    await _go_to_location_after_problem(
-        message,
-        state,
-        problem=message.text or "",
-        media_items=[],
-        loc=loc,
-    )
+    data = await state.get_data()
+    section_kind = data.get("section_kind")
+
+    if section_kind == KIND_SUGGESTION:
+        await _finalize_suggestion(
+            message,
+            state,
+            bot,
+            problem=message.text or "",
+            media_items=[],
+            loc=loc,
+        )
+    else:
+        await _go_to_location_after_problem(
+            message,
+            state,
+            problem=message.text or "",
+            media_items=[],
+            loc=loc,
+        )
 
 
 @router.message(StateFilter(OrderStates.waiting_problem))
