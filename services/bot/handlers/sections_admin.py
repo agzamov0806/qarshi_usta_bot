@@ -17,7 +17,6 @@ from packages.db.repositories import section_ustas as section_ustas_repo
 from packages.db.repositories import sections as sections_repo
 from packages.db.repositories import users as users_repo
 from packages.db.repositories.sections import (
-    KIND_ADMIN_CONTACT,
     KIND_LABELS,
     KIND_STANDARD,
     KIND_SUGGESTION,
@@ -531,14 +530,6 @@ async def cb_section_kind_menu(call: CallbackQuery, callback_data: SectionCallba
                     text="Taklif",
                     callback_data=SectionKindCallback(
                         sid=sid, kind=KIND_SUGGESTION
-                    ).pack(),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="Adminga murojaat",
-                    callback_data=SectionKindCallback(
-                        sid=sid, kind=KIND_ADMIN_CONTACT
                     ).pack(),
                 )
             ],

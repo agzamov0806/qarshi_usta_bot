@@ -5,7 +5,7 @@ from html import escape
 
 from aiogram.types import User
 
-from packages.db.repositories.sections import KIND_ADMIN_CONTACT, KIND_SUGGESTION
+from packages.db.repositories.sections import KIND_SUGGESTION
 
 
 def display_name_from_user(user: User | None) -> str:
@@ -18,9 +18,7 @@ def display_name_from_user(user: User | None) -> str:
 
 def _detail_label(section_kind: str | None) -> str:
     if section_kind == KIND_SUGGESTION:
-        return "Taklif"
-    if section_kind == KIND_ADMIN_CONTACT:
-        return "Murojaat"
+        return "Taklif/Murojaat"
     return "Muammo"
 
 

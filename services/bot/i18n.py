@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from packages.db.repositories.sections import KIND_ADMIN_CONTACT, KIND_SUGGESTION
+from packages.db.repositories.sections import KIND_SUGGESTION
 
 LANG_UZ = "uz"
 LANG_RU = "ru"
@@ -623,6 +623,4 @@ def t(locale: str, key: str, **kwargs: str | int) -> str:
 def problem_prompt_for_locale(locale: str, section_kind: str | None) -> str:
     if section_kind == KIND_SUGGESTION:
         return t(locale, "prompt.suggestion")
-    if section_kind == KIND_ADMIN_CONTACT:
-        return t(locale, "prompt.admin_contact")
     return t(locale, "prompt.problem")

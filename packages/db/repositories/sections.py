@@ -17,12 +17,10 @@ from shared.section_titles import canonical_title_for_lookup
 # Tur nomlari (DB da saqlanadi)
 KIND_STANDARD = "standard"
 KIND_SUGGESTION = "suggestion"
-KIND_ADMIN_CONTACT = "admin_contact"
 
 KIND_LABELS = {
     KIND_STANDARD: "Oddiy buyurtma",
-    KIND_SUGGESTION: "Taklif",
-    KIND_ADMIN_CONTACT: "Adminga murojaat",
+    KIND_SUGGESTION: "Taklif/Murojaat",
 }
 
 # list_active_titles uchun — har xabar uchun qayta-qayta SELECTsiz
@@ -208,8 +206,7 @@ async def seed_defaults_if_empty(session: AsyncSession) -> None:
         ("Payvandlash xizmati (svarka)", KIND_STANDARD, 3),
         ("Mebel yig'ish xizmati", KIND_STANDARD, 4),
         ("Televizor va boshqa maishiy texnika ta'miri", KIND_STANDARD, 5),
-        ("Takliflar", KIND_SUGGESTION, 6),
-        ("Adminga murojaat", KIND_ADMIN_CONTACT, 7),
+        ("Takliflar va adminga murojaat", KIND_SUGGESTION, 6),
     ]
     for title, kind, order in defaults:
         session.add(

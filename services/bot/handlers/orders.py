@@ -24,10 +24,7 @@ from packages.db.repositories import orders as orders_repo
 from packages.db.repositories import section_ustas as section_ustas_repo
 from packages.db.repositories import sections as sections_repo
 from packages.db.repositories import users as users_repo
-from packages.db.repositories.sections import (
-    KIND_ADMIN_CONTACT,
-    KIND_SUGGESTION,
-)
+from packages.db.repositories.sections import KIND_SUGGESTION
 from packages.db.models import SectionUsta
 from packages.db.session import get_session_factory
 from services.bot.callback_data import OrderCallback
@@ -1184,11 +1181,8 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
         )
 
     if section_kind == KIND_SUGGESTION:
-        header = f"📝 Yangi taklif #{order_id}"
-        detail_label = "Taklif"
-    elif section_kind == KIND_ADMIN_CONTACT:
-        header = f"📩 Adminga murojaat #{order_id}"
-        detail_label = "Murojaat"
+        header = f"📝 Yangi taklif/murojaat #{order_id}"
+        detail_label = "Taklif/Murojaat"
     else:
         header = f"🆕 Yangi buyurtma #{order_id}"
         detail_label = "Muammo"
@@ -1226,8 +1220,6 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
 
     if section_kind == KIND_SUGGESTION:
         ok_txt = t(loc, "order.ok_suggestion")
-    elif section_kind == KIND_ADMIN_CONTACT:
-        ok_txt = t(loc, "order.ok_admin")
     else:
         ok_txt = t(loc, "order.ok_order")
 
