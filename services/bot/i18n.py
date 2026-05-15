@@ -273,9 +273,6 @@ _MSG: dict[str, dict[str, str]] = {
         "prompt.suggestion": (
             "Taklifingizni matn, rasm yoki video bilan yuboring (izoh ixtiyoriy). Bir xabar."
         ),
-        "prompt.admin_contact": (
-            "Murojaatingizni matn, rasm yoki video bilan yuboring (izoh ixtiyoriy). Bir xabar."
-        ),
         "kb.contact_placeholder": "Tugmani bosing",
         "kb.services_placeholder": "Xizmatni tanlang",
         "kb.no_section": "— bo'lim yo'q —",
@@ -558,9 +555,6 @@ _MSG: dict[str, dict[str, str]] = {
         ),
         "prompt.suggestion": (
             "Отправьте предложение текстом, фото или видео (подпись по желанию). Одним сообщением."
-        ),
-        "prompt.admin_contact": (
-            "Отправьте обращение текстом, фото или видео (подпись по желанию). Одним сообщением."
         ),
         "kb.contact_placeholder": "Нажмите кнопку",
         "kb.services_placeholder": "Выберите услугу",
