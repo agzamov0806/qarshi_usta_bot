@@ -72,6 +72,44 @@ async def create_order(
     return int(o.id)
 
 
+async def create_order_with_details(
+    session: AsyncSession,
+    *,
+    client_tg_id: int,
+    client_name: str | None,
+    username: str | None,
+    phone: str | None,
+    service: str,
+    section_id: int | None,
+    section_kind: str | None,
+    problem: str,
+    lat: float | None,
+    lon: float | None,
+    problem_media_json: str | None = None,
+    service_address_note: str | None = None,
+) -> tuple[int, str]:
+    """Buyurtma yaratish va darhol created_at bilan qaytarish (redundant sorova yo'q)."""
+    o = Order(
+        client_tg_id=client_tg_id,
+        client_name=client_name,
+        username=username,
+        phone=phone,
+        service=service,
+        section_id=section_id,
+        section_kind=section_kind,
+        problem=problem,
+        problem_media_json=problem_media_json,
+        lat=lat,
+        lon=lon,
+        service_address_note=service_address_note,
+        status="new",
+    )
+    session.add(o)
+    await session.commit()
+    await session.refresh(o)
+    return int(o.id), str(o.created_at)
+
+
 async def get_order(session: AsyncSession, order_id: int) -> dict | None:
     o = await session.get(Order, order_id)
     return order_to_dict(o) if o else None

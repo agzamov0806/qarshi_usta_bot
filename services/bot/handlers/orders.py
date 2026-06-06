@@ -344,7 +344,7 @@ async def _finalize_suggestion(
             elif message.from_user:
                 client_name = message.from_user.full_name
 
-            order_id = await orders_repo.create_order(
+            order_id, created_at = await orders_repo.create_order_with_details(
                 session,
                 client_tg_id=uid,
                 client_name=client_name,
@@ -363,14 +363,6 @@ async def _finalize_suggestion(
                 log.error("Taklif yaratilmadi: order_id=%s uid=%s", order_id, uid)
                 await message.answer(t(loc, "fallback.no_handler"))
                 return
-
-            order_obj = await orders_repo.get_order(session, order_id)
-            if not order_obj:
-                log.error("Taklif yaratildi lekin topilmadi: order_id=%s uid=%s", order_id, uid)
-                await message.answer(t(loc, "fallback.no_handler"))
-                return
-
-            created_at = order_obj.get("created_at", "")
     except Exception:
         log.exception("Taklif yaratishda xato: uid=%s", uid)
         await message.answer(t(loc, "fallback.no_handler"))
