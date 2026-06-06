@@ -333,30 +333,48 @@ async def _finalize_suggestion(
     section_kind = data.get("section_kind")
     problem_media_json = json.dumps(media_items, ensure_ascii=False) if media_items else None
 
-    async with get_session_factory()() as session:
-        user_row = await users_repo.get_user(session, uid)
-        client_name: str | None = None
-        phone: str | None = None
-        if user_row:
-            client_name = f"{user_row.first_name} {user_row.last_name}".strip()
-            phone = user_row.phone
-        elif message.from_user:
-            client_name = message.from_user.full_name
+    try:
+        async with get_session_factory()() as session:
+            user_row = await users_repo.get_user(session, uid)
+            client_name: str | None = None
+            phone: str | None = None
+            if user_row:
+                client_name = f"{user_row.first_name} {user_row.last_name}".strip()
+                phone = user_row.phone
+            elif message.from_user:
+                client_name = message.from_user.full_name
 
-        order_id = await orders_repo.create_order(
-            session,
-            client_tg_id=uid,
-            client_name=client_name,
-            username=message.from_user.username if message.from_user else None,
-            phone=phone,
-            service=service,
-            section_id=int(section_db_id) if section_db_id else None,
-            section_kind=section_kind,
-            problem=problem.strip(),
-            lat=None,
-            lon=None,
-            problem_media_json=problem_media_json,
-        )
+            order_id = await orders_repo.create_order(
+                session,
+                client_tg_id=uid,
+                client_name=client_name,
+                username=message.from_user.username if message.from_user else None,
+                phone=phone,
+                service=service,
+                section_id=int(section_db_id) if section_db_id else None,
+                section_kind=section_kind,
+                problem=problem.strip(),
+                lat=None,
+                lon=None,
+                problem_media_json=problem_media_json,
+            )
+
+            if not order_id or order_id <= 0:
+                log.error("Taklif yaratilmadi: order_id=%s uid=%s", order_id, uid)
+                await message.answer(t(loc, "fallback.no_handler"))
+                return
+
+            order_obj = await orders_repo.get_order(session, order_id)
+            if not order_obj:
+                log.error("Taklif yaratildi lekin topilmadi: order_id=%s uid=%s", order_id, uid)
+                await message.answer(t(loc, "fallback.no_handler"))
+                return
+
+            created_at = order_obj.get("created_at", "")
+    except Exception:
+        log.exception("Taklif yaratishda xato: uid=%s", uid)
+        await message.answer(t(loc, "fallback.no_handler"))
+        return
 
     await state.clear()
 
@@ -369,7 +387,7 @@ async def _finalize_suggestion(
         "service": service,
         "section_kind": section_kind,
         "status": "new",
-        "created_at": "",
+        "created_at": created_at,
         "problem": problem.strip(),
         "lat": None,
         "lon": None,
@@ -424,10 +442,18 @@ async def _continue_after_problem_or_media(
     data = await state.get_data()
     section_kind = data.get("section_kind")
 
-    if section_kind == KIND_SUGGESTION:
-        await _finalize_suggestion(message, state, bot, problem=problem, media_items=media_items, loc=loc)
-    else:
-        await _go_to_location_after_problem(message, state, problem=problem, media_items=media_items, loc=loc)
+    try:
+        if section_kind == KIND_SUGGESTION:
+            await _finalize_suggestion(message, state, bot, problem=problem, media_items=media_items, loc=loc)
+        else:
+            await _go_to_location_after_problem(message, state, problem=problem, media_items=media_items, loc=loc)
+    except Exception:
+        log.exception("Muammoni qayta ishlovda xato: uid=%s kind=%s", message.from_user.id if message.from_user else 0, section_kind)
+        try:
+            await state.clear()
+            await message.answer(t(loc, "fallback.no_handler"))
+        except Exception:
+            pass
 
 
 async def _append_optional_media_item(
