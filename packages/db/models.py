@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -107,3 +107,9 @@ class Order(Base):
     rating: Mapped[int | None] = mapped_column(nullable=True)
     # Mijozga baholash so'rovi yuborilganmi
     rating_requested: Mapped[bool] = mapped_column(default=False)
+
+    __table_args__ = (
+        Index("idx_order_client_tg_id", "client_tg_id"),
+        Index("idx_order_status", "status"),
+        Index("idx_order_client_status", "client_tg_id", "status"),
+    )
