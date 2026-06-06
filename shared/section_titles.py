@@ -15,8 +15,7 @@ UZ_TO_RU: dict[str, str] = {
     "Payvandlash xizmati (svarka)": "Сварочные работы",
     "Mebel yig'ish xizmati": "Сборка мебели",
     "Televizor va boshqa maishiy texnika ta'miri": "Ремонт ТВ и бытовой техники",
-    "Takliflar": "Предложения",
-    "Adminga murojaat": "Связь с администратором",
+    "Takliflar va adminga murojaat": "Предложения и связь с администратором",
 }
 
 RU_TO_UZ: dict[str, str] = {ru: uz for uz, ru in UZ_TO_RU.items()}
