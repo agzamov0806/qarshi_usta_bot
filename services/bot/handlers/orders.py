@@ -331,36 +331,49 @@ async def _finalize_suggestion(
     service = data.get("service") or ""
     section_db_id = data.get("section_id")
     section_kind = data.get("section_kind")
+    problem_media_json = json.dumps(media_items, ensure_ascii=False) if media_items else None
 
     async with get_session_factory()() as session:
-        user_row = await users_repo.get_by_telegram_id(session, uid)
-        order_result = await orders_repo.create_order(
+        user_row = await users_repo.get_user(session, uid)
+        client_name: str | None = None
+        phone: str | None = None
+        if user_row:
+            client_name = f"{user_row.first_name} {user_row.last_name}".strip()
+            phone = user_row.phone
+        elif message.from_user:
+            client_name = message.from_user.full_name
+
+        order_id = await orders_repo.create_order(
             session,
             client_tg_id=uid,
+            client_name=client_name,
+            username=message.from_user.username if message.from_user else None,
+            phone=phone,
             service=service,
+            section_id=int(section_db_id) if section_db_id else None,
+            section_kind=section_kind,
             problem=problem.strip(),
-            section_db_id=section_db_id,
-            is_suggestion=True,
+            lat=None,
+            lon=None,
+            problem_media_json=problem_media_json,
         )
-        order_id = order_result.id
-        await session.commit()
 
     await state.clear()
 
     order_data = {
         "id": order_id,
-        "client_name": user_row.get("full_name") if user_row else None,
+        "client_name": client_name,
         "client_tg_id": uid,
         "username": message.from_user.username if message.from_user else None,
-        "phone": user_row.get("phone_normalized") if user_row else None,
+        "phone": phone,
         "service": service,
         "section_kind": section_kind,
-        "status": "yangi",
-        "created_at": order_result.created_at,
+        "status": "new",
+        "created_at": "",
         "problem": problem.strip(),
         "lat": None,
         "lon": None,
-        "problem_media_json": json.dumps(media_items) if media_items else None,
+        "problem_media_json": problem_media_json,
         "service_address_note": None,
     }
 
@@ -730,19 +743,11 @@ async def service_chosen(message: Message, state: FSMContext) -> None:
             problem_media=[],
         )
         await state.set_state(OrderStates.waiting_problem)
-        prompt_key = "order.problem_prompt_suggestion"
-        if prompt_key in _MSG.get(loc, {}):
-            await message.answer(
-                t(loc, prompt_key),
-                parse_mode="HTML",
-                reply_markup=ReplyKeyboardRemove(),
-            )
-        else:
-            await message.answer(
-                f"Taklifingizni yozing:\n\n(Rasm yoki video qo'shishingiz mumkin)",
-                parse_mode="HTML",
-                reply_markup=ReplyKeyboardRemove(),
-            )
+        await message.answer(
+            t(loc, "prompt.suggestion"),
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove(),
+        )
         return
 
     await state.update_data(
@@ -1239,16 +1244,6 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
     client_tg_id = user.id if user else 0
     loc = await _locale_for_user(client_tg_id)
 
-    async with get_session_factory()() as session:
-        reg = await users_repo.get_user(session, client_tg_id)
-        if client_tg_id != ADMIN_ID and not reg:
-            await state.clear()
-            await message.answer(
-                t(loc, "order.session_bad"),
-                reply_markup=ReplyKeyboardRemove(),
-            )
-            return
-
     has_coords = lat is not None and lon is not None
     if not has_coords and snote is None:
         await state.set_state(OrderStates.waiting_location_choice)
@@ -1264,6 +1259,13 @@ async def finalize_order(message: Message, state: FSMContext, bot: Bot) -> None:
 
     async with get_session_factory()() as session:
         reg = await users_repo.get_user(session, client_tg_id)
+        if client_tg_id != ADMIN_ID and not reg:
+            await state.clear()
+            await message.answer(
+                t(loc, "order.session_bad"),
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            return
         profile_full_name: str | None = None
         phone: str | None = None
         if reg:
@@ -1750,7 +1752,10 @@ async def cb_order_rate(
         usta_row = await section_ustas_repo.get_by_id(session, suid) if suid > 0 else None
         cloc = await users_repo.get_locale(session, actor)
 
-    usta_name = escape(usta_row.first_name + " " + (usta_row.last_name or "") if usta_row else (row or {}).get("accepted_usta_name") or "")
+    if usta_row:
+        usta_name = escape(f"{usta_row.first_name} {usta_row.last_name or ''}".strip())
+    else:
+        usta_name = escape((row or {}).get("accepted_usta_name") or "")
 
     # Mijozdan baholash tugmalarini olib tashlash + rahmat
     try:

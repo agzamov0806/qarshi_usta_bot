@@ -1,8 +1,11 @@
 """Ro'yxatdan o'tish, til tanlash va /start."""
 
+import logging
 from html import escape
 
 from aiogram import F
+
+log = logging.getLogger(__name__)
 from aiogram.filters import Command, StateFilter, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -12,6 +15,9 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
+from sqlalchemy import select
+
+from packages.db.models import SectionUsta
 from packages.db.repositories import section_ustas as section_ustas_repo
 from packages.db.repositories import users as users_repo
 from packages.db.session import get_session_factory
@@ -119,9 +125,6 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 
 async def _start_usta_claim(message: Message, state: FSMContext) -> None:
     """Usta /start usta deep link bilan kirdi — telefon share qilish."""
-    import logging
-    log = logging.getLogger(__name__)
-
     uid = message.from_user.id if message.from_user else 0
     loc = await _locale(uid)
     log.info("_start_usta_claim: user_id=%s", uid)
@@ -319,9 +322,6 @@ async def reg_phone_hint(message: Message, state: FSMContext) -> None:
 @router.message(UstaClaimStates.waiting_contact, F.contact)
 async def usta_claim_contact(message: Message, state: FSMContext) -> None:
     """Usta o'z kontaktini yubordi — telefonni normalizatsiya qilib DB bilan bog'laymiz."""
-    import logging
-    log = logging.getLogger(__name__)
-
     uid = message.from_user.id if message.from_user else 0
     current_state = await state.get_state()
     log.info("usta_claim_contact: user_id=%s state=%s contact=%s", uid, current_state, message.contact)

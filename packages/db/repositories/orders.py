@@ -67,8 +67,8 @@ async def create_order(
         status="new",
     )
     session.add(o)
-    await session.flush()
     await session.commit()
+    await session.refresh(o)
     return int(o.id)
 
 
