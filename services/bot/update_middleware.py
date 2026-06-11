@@ -89,12 +89,13 @@ class ChatSerialMiddleware(BaseMiddleware):
 class RateLimitMiddleware(BaseMiddleware):
     """Har bir foydalanuvchiga rate limit qo'yish — spam oldini olish."""
 
-    __slots__ = ("_user_timestamps",)
-    # max_messages per second per user
-    MAX_MESSAGES_PER_SEC = 5
+    __slots__ = ("_user_timestamps", "_rate_limit_notifications")
+    # max_messages per second per user (1000+ users uchun)
+    MAX_MESSAGES_PER_SEC = 10
 
     def __init__(self) -> None:
         self._user_timestamps: dict[int, list[float]] = {}
+        self._rate_limit_notifications: dict[int, float] = {}
 
     async def __call__(
         self,
@@ -122,7 +123,23 @@ class RateLimitMiddleware(BaseMiddleware):
                 key,
                 len(self._user_timestamps[key]),
             )
-            # Skip this update silently to prevent spam loops
+            # User feedback (har 5 soniyada bittasi, spam oldini olish uchun)
+            last_notification = self._rate_limit_notifications.get(key, 0)
+            if now - last_notification > 5.0:
+                from services.bot.i18n import LANG_UZ, t
+                from aiogram.types import Message
+
+                if isinstance(event, Message) and event.chat:
+                    try:
+                        await event.answer(
+                            t(LANG_UZ, "order.problem_not_text"),  # Fallback: simple error
+                            parse_mode=None,
+                        )
+                    except Exception:
+                        pass
+                self._rate_limit_notifications[key] = now
+
+            # Skip this update
             return None
 
         # Record this message

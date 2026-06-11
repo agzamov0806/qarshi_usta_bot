@@ -38,9 +38,25 @@ async def run_bot() -> None:
             bot,
             handle_as_tasks=True,
         )
+    except Exception:
+        log.exception("Bot polling xatosi")
+        raise
     finally:
+        # Pending background tasks kutish (shutdown grace period)
+        pending = asyncio.all_tasks()
+        if pending:
+            log.info(f"⏳ {len(pending)} ta jarayonga kutilmoqda...")
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*pending, return_exceptions=True),
+                    timeout=5.0,
+                )
+            except asyncio.TimeoutError:
+                log.warning("Background tasks timeout - forcing shutdown")
+
         await bot.session.close()
         await close_engine()
+        log.info("✅ Bot tugatildi")
 
 
 def main() -> None:

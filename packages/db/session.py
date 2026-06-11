@@ -53,8 +53,9 @@ def get_engine() -> AsyncEngine:
             kwargs["connect_args"] = {"timeout": 30.0}
         elif "postgres" in url:
             kwargs["pool_pre_ping"] = True
-            kwargs["pool_size"] = 20
-            kwargs["max_overflow"] = 15
+            kwargs["pool_size"] = 50  # 1000+ users uchun
+            kwargs["max_overflow"] = 50
+            kwargs["pool_recycle"] = 3600  # 1 soat keyin stale connection o'chirish
 
         _engine = create_async_engine(settings.database_url, **kwargs)
 

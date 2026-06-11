@@ -224,38 +224,64 @@ async def _send_admin_order_notice(
 ) -> None:
     """Mijoz javobidan keyin fon rejimida — Telegram API bloklamaslik uchun."""
     msg_ok = False
-    try:
-        kw: dict = {"chat_id": admin_chat_id, "text": text, "parse_mode": "HTML"}
-        if reply_markup is not None:
-            kw["reply_markup"] = reply_markup
-        await bot.send_message(**kw)
-        msg_ok = True
-    except TelegramBadRequest as e:
-        msg = (e.message or "").lower()
-        if "chat not found" in msg or "peer_id_invalid" in msg:
-            log.error(
-                "Buyurtma #%s: %s chat_id=%s — Telegram xabar yubormadi (%s). "
-                "Usta uchun: ID telefon raqami emas, balki @userinfobot dagi raqam bo‘lishi kerak; "
-                "usta avval shu botda /start bosgan bo‘lishi shart.",
-                order_id,
-                recipient,
-                admin_chat_id,
-                e.message,
-            )
-        else:
+    max_retries = 3
+    base_backoff = 1
+
+    for attempt in range(max_retries):
+        try:
+            kw: dict = {"chat_id": admin_chat_id, "text": text, "parse_mode": "HTML"}
+            if reply_markup is not None:
+                kw["reply_markup"] = reply_markup
+            await bot.send_message(**kw)
+            msg_ok = True
+            break
+        except TelegramBadRequest as e:
+            msg = (e.message or "").lower()
+            if "too many requests" in msg or "retry after" in msg:
+                # Telegram rate limit - backoff va qayta urinish
+                wait_time = base_backoff ** attempt
+                log.warning(
+                    "Buyurtma #%s: Telegram rate limit — %d soniyada qayta urinish",
+                    order_id,
+                    wait_time,
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    log.error(
+                        "Buyurtma #%s: Rate limit — max retries exceeded",
+                        order_id,
+                    )
+                    break
+            elif "chat not found" in msg or "peer_id_invalid" in msg:
+                log.error(
+                    "Buyurtma #%s: %s chat_id=%s — Telegram xabar yubormadi (%s). "
+                    "Usta uchun: ID telefon raqami emas, balki @userinfobot dagi raqam bo’lishi kerak; "
+                    "usta avval shu botda /start bosgan bo’lishi shart.",
+                    order_id,
+                    recipient,
+                    admin_chat_id,
+                    e.message,
+                )
+                break
+            else:
+                log.exception(
+                    "Buyurtma #%s: %s chat_id=%s — TelegramBadRequest",
+                    order_id,
+                    recipient,
+                    admin_chat_id,
+                )
+                break
+        except Exception:
             log.exception(
-                "Buyurtma #%s: %s chat_id=%s — TelegramBadRequest",
+                "Buyurtma #%s: %s chat_id=%s ga yuborilmadi (fon)",
                 order_id,
                 recipient,
                 admin_chat_id,
             )
-    except Exception:
-        log.exception(
-            "Buyurtma #%s: %s chat_id=%s ga yuborilmadi (fon)",
-            order_id,
-            recipient,
-            admin_chat_id,
-        )
+            break
+
     if msg_ok and media_items:
         await _send_order_media(
             bot, admin_chat_id, order_id, media_items, recipient=recipient
